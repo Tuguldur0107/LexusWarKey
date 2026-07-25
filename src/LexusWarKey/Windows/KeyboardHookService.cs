@@ -15,18 +15,24 @@ public sealed class KeyboardHookService : IDisposable
     private readonly RemapEngine _engine;
     private readonly NativeMethods.LowLevelKeyboardProc _callback; // kept alive; a collected delegate crashes the hook
     private readonly Func<IntPtr> _gameWindow;
-    private readonly Func<bool> _moveCursorForClicks;
+    private readonly Func<bool> _usePostedClicks;
     private IntPtr _hook = IntPtr.Zero;
     private long _lastCallbackTicks;
 
     /// <summary>Which of the app's own shortcuts are physically held, so auto-repeat fires once.</summary>
     private readonly HashSet<int> _shortcutHeld = new();
 
-    public KeyboardHookService(RemapEngine engine, Func<IntPtr> gameWindow, Func<bool> moveCursorForClicks)
+    /// <summary>Macro and skill keys currently held, so OS auto-repeat fires each once.</summary>
+    private readonly HashSet<int> _actionHeld = new();
+
+    /// <summary>1 while a chat macro is typing. Two at once would interleave keystrokes.</summary>
+    private int _macroInFlight;
+
+    public KeyboardHookService(RemapEngine engine, Func<IntPtr> gameWindow, Func<bool> usePostedClicks)
     {
         _engine = engine;
         _gameWindow = gameWindow;
-        _moveCursorForClicks = moveCursorForClicks;
+        _usePostedClicks = usePostedClicks;
         _callback = HookCallback;
     }
 
@@ -140,6 +146,21 @@ public sealed class KeyboardHookService : IDisposable
                 return IsModifier(vk) ? NativeMethods.CallNextHookEx(_hook, nCode, wParam, lParam) : 1;
             }
 
+            // While the app is typing a macro, the chat line belongs to it: a player's stray
+            // Enter or Escape mid-macro would send a half-typed line or close the prompt, and
+            // every later line of the macro would land in the game as raw orders. The key that
+            // STARTED the macro gets the same treatment — a six-line macro outlasts the OS
+            // auto-repeat delay, and those repeats would otherwise type into the open prompt.
+            if (_engine.SuspendedForTyping
+                && (vk is VirtualKeys.Enter or VirtualKeys.Escape || _actionHeld.Contains(vk)))
+            {
+                // The release still has to clear the latch, or the key would need a second
+                // press after the macro before it worked again.
+                if (isUp)
+                    _actionHeld.Remove(vk);
+                return 1;
+            }
+
             // Watch the player's own Enter/Escape so we know when Warcraft's chat line is
             // open and can get out of the way. Injected keys were filtered out above, so
             // the app's own macro typing never reaches this.
@@ -153,6 +174,15 @@ public sealed class KeyboardHookService : IDisposable
                     return 1; // swallow the original
 
                 case RemapAction.SendChat when isDown:
+                    // Auto-repeat must not restart the macro, and two macros must never
+                    // interleave — the second would type into the middle of the first's line.
+                    if (!_actionHeld.Add(vk))
+                        return 1;
+                    if (Interlocked.CompareExchange(ref _macroInFlight, 1, 0) != 0)
+                        return 1;
+                    // Armed here, not in the worker: the pool can lag, and a second key in
+                    // that gap used to slip past the SuspendedForTyping check entirely.
+                    _engine.SuspendedForTyping = true;
                     var lines = decision.ChatLines ?? Array.Empty<string>();
                     var allies = decision.AlliesOnly;
                     // Never type inside the hook: SendInput here would deadlock the input queue.
@@ -160,20 +190,31 @@ public sealed class KeyboardHookService : IDisposable
                     return 1;
 
                 case RemapAction.ClickSlot when decision.ClickAt is { } point:
+                    if (!_actionHeld.Add(vk))
+                        return 1; // OS auto-repeat of a held key — one press, one click
                     var right = decision.RightClick;
                     var hwnd = _gameWindow();
-                    var allowCursorMove = _moveCursorForClicks();
+                    var usePosted = _usePostedClicks();
                     // Clicking involves sleeps; doing it inside the hook would freeze input.
-                    ThreadPool.QueueUserWorkItem(_ => SafeClick(hwnd, point.X, point.Y, right, allowCursorMove));
+                    ThreadPool.QueueUserWorkItem(_ => SafeClick(hwnd, point.X, point.Y, right, usePosted));
                     return 1;
 
                 case RemapAction.ClickSlot:
+                    if (isUp)
+                        _actionHeld.Remove(vk);
                     return 1; // key-up (or an uncalibrated card): swallow, do nothing
 
                 case RemapAction.SendChat:
+                    if (isUp)
+                        _actionHeld.Remove(vk);
                     return 1; // swallow the matching key-up too
 
                 default:
+                    // Only the key-UP releases the latch. Clearing it on a passed-through
+                    // key-DOWN re-armed a still-held macro key the moment the macro finished,
+                    // and a held F5 then re-sent the whole block once a second.
+                    if (isUp)
+                        _actionHeld.Remove(vk);
                     return NativeMethods.CallNextHookEx(_hook, nCode, wParam, lParam);
             }
         }
@@ -184,16 +225,17 @@ public sealed class KeyboardHookService : IDisposable
         }
     }
 
-    /// <summary>Posts the click to the game window first — that never moves the player's
-    /// cursor. Only if the user explicitly allowed it do we fall back to moving the cursor.</summary>
-    private static void SafeClick(IntPtr hwnd, int x, int y, bool rightClick, bool allowCursorMove)
+    /// <summary>The default path moves the real cursor, clicks, and puts it back — the same
+    /// thing Garena's WarKey and every other Warcraft tool does, because the game resolves a
+    /// click against the actual cursor, not the coordinates inside a posted message. Posting
+    /// stays available as an opt-in experiment, with the cursor move as its fallback.</summary>
+    private static void SafeClick(IntPtr hwnd, int x, int y, bool rightClick, bool usePosted)
     {
         try
         {
-            if (InputSender.ClickInWindow(hwnd, x, y, rightClick))
+            if (usePosted && InputSender.ClickInWindow(hwnd, x, y, rightClick))
                 return;
-            if (allowCursorMove)
-                InputSender.ClickAt(x, y, rightClick);
+            InputSender.ClickAt(x, y, rightClick);
         }
         catch { /* a failed click must never take the app down */ }
     }
@@ -206,9 +248,10 @@ public sealed class KeyboardHookService : IDisposable
 
     private void SendChatLines(IReadOnlyList<string> lines, bool alliesOnly)
     {
+        // SuspendedForTyping was already set in the hook, before this was queued — setting it
+        // here left a gap where a second macro could slip in while the pool spun up a thread.
         try
         {
-            _engine.SuspendedForTyping = true;
             foreach (var line in lines)
             {
                 // Warcraft III addresses the chat prompt by modifier, per the manual's hotkey
@@ -216,15 +259,23 @@ public sealed class KeyboardHookService : IDisposable
                 // Plain Enter is deliberately not used for either — it opens whatever channel
                 // the player last selected in the F12 chat menu, so it is not a fixed target
                 // and a macro meant for the team could land in front of the enemy.
-                InputSender.TapWithModifier(
-                    alliesOnly ? VirtualKeys.LControl : VirtualKeys.LShift,
-                    VirtualKeys.Enter);
+                if (!InputSender.TapWithModifier(
+                        alliesOnly ? VirtualKeys.LControl : VirtualKeys.LShift,
+                        VirtualKeys.Enter))
+                    return; // Windows refused the injection (UIPI?) — stop, don't type into nothing
 
-                Thread.Sleep(30);
-                InputSender.TypeText(line);
-                Thread.Sleep(30);
+                // The prompt must exist before the text arrives, and the game opens it on its
+                // own schedule — one frame at best, several under load. Typing early does not
+                // queue: the keystrokes land in the game world as orders. These delays are
+                // deliberately generous; a macro is allowed to take half a second, it is not
+                // allowed to feed "-clear" to the hero as movement.
+                Thread.Sleep(80);
+                if (!InputSender.TypeText(line))
+                    return; // partial delivery — pressing Enter now would send a mangled line
+
+                Thread.Sleep(50);
                 InputSender.TapKey(VirtualKeys.Enter);     // send it
-                Thread.Sleep(60);                          // let the game settle before the next line
+                Thread.Sleep(120);                         // let the prompt fully close before reopening
             }
         }
         catch
@@ -234,6 +285,7 @@ public sealed class KeyboardHookService : IDisposable
         finally
         {
             _engine.SuspendedForTyping = false;
+            Interlocked.Exchange(ref _macroInFlight, 0);
         }
     }
 

@@ -1,5 +1,6 @@
 using System.Windows;
 using System.Windows.Controls;
+using System.Windows.Controls.Primitives;
 using System.Windows.Input;
 using LexusWarKey.Core;
 using LexusWarKey.Windows;
@@ -14,6 +15,11 @@ public partial class OverlayWindow : Window
     private Point _dragStart;
     private double _startLeft, _startTop;
 
+    // Cell size is user-adjustable so the command-card grid can be laid exactly over the
+    // game's own buttons — that alignment IS the calibration (see Link_Click).
+    private double _cellWidth = 62;
+    private double _cellHeight = 46;
+
     public OverlayWindow()
     {
         InitializeComponent();
@@ -22,6 +28,10 @@ public partial class OverlayWindow : Window
         DragHandle.MouseLeftButtonDown += OnDragStart;
         DragHandle.MouseMove += OnDragMove;
         DragHandle.MouseLeftButtonUp += OnDragEnd;
+
+        ResizeGrip.DragDelta += OnResizeDelta;
+        ResizeGrip.DragCompleted += (_, _) => Resized?.Invoke(_cellWidth, _cellHeight);
+        ApplyCellSize();
     }
 
     /// <summary>Raised when a slot is clicked. The overlay never takes focus, so clicking it
@@ -30,6 +40,15 @@ public partial class OverlayWindow : Window
 
     /// <summary>Raised after the user drags the panel, so the position can be remembered.</summary>
     public event Action<double, double>? Moved;
+
+    /// <summary>Raised after the user resizes the cells, so the size can be remembered.</summary>
+    public event Action<double, double>? Resized;
+
+    /// <summary>Raised when the user presses "Холбох" with the panel laid over the game's
+    /// command card: carries the screen centres of the first and last card cells, which is
+    /// exactly the two-corner calibration — captured from where the user aligned the grid,
+    /// with no corner-clicking ceremony.</summary>
+    public event Action<ScreenPoint, ScreenPoint>? LinkRequested;
 
     public void ShowSlots(IReadOnlyList<OverlaySlot> inventory, IReadOnlyList<OverlaySlot> skills, string prompt)
     {
@@ -51,9 +70,33 @@ public partial class OverlayWindow : Window
         else
         {
             // First run (or a screen that no longer exists): sit out of the way, top-right.
-            Left = area.Right - Math.Max(ActualWidth, 460) - 24;
+            Left = area.Right - Math.Max(ActualWidth, 520) - 24;
             Top = area.Top + 24;
         }
+    }
+
+    public void SetCellSize(double? width, double? height)
+    {
+        if (width is { } w && w is >= 30 and <= 240)
+            _cellWidth = w;
+        if (height is { } h && h is >= 24 and <= 200)
+            _cellHeight = h;
+        ApplyCellSize();
+    }
+
+    private void ApplyCellSize()
+    {
+        InventoryList.Width = _cellWidth * 2;
+        InventoryList.Height = _cellHeight * 3;
+        SkillList.Width = _cellWidth * CommandCard.Columns;
+        SkillList.Height = _cellHeight * CommandCard.Rows;
+    }
+
+    private void OnResizeDelta(object sender, DragDeltaEventArgs e)
+    {
+        _cellWidth = Math.Clamp(_cellWidth + e.HorizontalChange / CommandCard.Columns, 30, 240);
+        _cellHeight = Math.Clamp(_cellHeight + e.VerticalChange / CommandCard.Rows, 24, 200);
+        ApplyCellSize();
     }
 
     private static bool IsOnScreen(double left, double top, Rect area) =>
@@ -67,6 +110,27 @@ public partial class OverlayWindow : Window
             SlotClicked?.Invoke(slot.Group, slot.Index);
             e.Handled = true;
         }
+    }
+
+    private void Link_Click(object sender, MouseButtonEventArgs e)
+    {
+        e.Handled = true;
+        var first = CellCentreOnScreen(0);
+        var last = CellCentreOnScreen(CommandCard.Slots - 1);
+        if (first is not null && last is not null)
+            LinkRequested?.Invoke(first, last);
+    }
+
+    /// <summary>Physical screen centre of a command-card cell. WPF under PerMonitorV2 returns
+    /// device pixels from PointToScreen, the same space the click sender works in.</summary>
+    private ScreenPoint? CellCentreOnScreen(int index)
+    {
+        if (SkillList.ItemContainerGenerator.ContainerFromIndex(index) is not FrameworkElement cell
+            || cell.ActualWidth <= 0)
+            return null;
+
+        var centre = cell.PointToScreen(new Point(cell.ActualWidth / 2, cell.ActualHeight / 2));
+        return new ScreenPoint((int)Math.Round(centre.X), (int)Math.Round(centre.Y));
     }
 
     // Manual drag: DragMove() wants an activatable window, and this one deliberately is not.

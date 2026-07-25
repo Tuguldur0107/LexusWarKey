@@ -20,9 +20,24 @@ public sealed class GameWindowWatcher
         if (hwnd == IntPtr.Zero)
             return false;
         NativeMethods.GetWindowThreadProcessId(hwnd, out var pid);
-        if (pid == 0)
-            return false;
+        return pid != 0 && CachedIsGame(pid);
+    }
 
+    /// <summary>Handle of the focused window when it belongs to the game, else zero.</summary>
+    public IntPtr GameWindowHandle()
+    {
+        var hwnd = NativeMethods.GetForegroundWindow();
+        if (hwnd == IntPtr.Zero)
+            return IntPtr.Zero;
+        NativeMethods.GetWindowThreadProcessId(hwnd, out var pid);
+        return pid != 0 && CachedIsGame(pid) ? hwnd : IntPtr.Zero;
+    }
+
+    /// <summary>Both public entry points run on the keyboard-hook thread for every keystroke,
+    /// and resolving a pid to a process name opens handles — tens of milliseconds on a bad day.
+    /// A slow hook is exactly what makes Windows silently remove it, so the answer is cached.</summary>
+    private bool CachedIsGame(uint pid)
+    {
         lock (_gate)
         {
             // Same window as last time and checked recently -> reuse the answer.
@@ -34,16 +49,6 @@ public sealed class GameWindowWatcher
             _cachedIsGame = ResolveIsGame(pid);
             return _cachedIsGame;
         }
-    }
-
-    /// <summary>Handle of the focused window when it belongs to the game, else zero.</summary>
-    public IntPtr GameWindowHandle()
-    {
-        var hwnd = NativeMethods.GetForegroundWindow();
-        if (hwnd == IntPtr.Zero)
-            return IntPtr.Zero;
-        NativeMethods.GetWindowThreadProcessId(hwnd, out var pid);
-        return pid != 0 && ResolveIsGame(pid) ? hwnd : IntPtr.Zero;
     }
 
     /// <summary>Is Warcraft running at all, focused or not? Calibration needs this: the two

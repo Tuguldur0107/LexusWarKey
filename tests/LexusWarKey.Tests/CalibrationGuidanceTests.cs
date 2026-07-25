@@ -17,8 +17,8 @@ public class CalibrationGuidanceTests
 
         var problem = Assert.Single(RemapEngine.FindDeadBindings(profile), p => p.Contains("командын карт"));
 
-        Assert.Contains("Warcraft III", problem);
-        Assert.Contains("Ctrl + F6", problem);
+        Assert.Contains("Ctrl+F6", problem);
+        Assert.Contains("Холбох", problem);
     }
 
     [Fact]

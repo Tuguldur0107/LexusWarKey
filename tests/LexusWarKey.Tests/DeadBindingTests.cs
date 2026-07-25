@@ -50,7 +50,7 @@ public class DeadBindingTests
 
         var problems = RemapEngine.FindDeadBindings(p);
 
-        Assert.Contains(problems, x => x.Contains("2 чадварын товч") && x.Contains("тохируулаагүй"));
+        Assert.Contains(problems, x => x.Contains("2 чадварын товч") && x.Contains("холбоогүй"));
     }
 
     [Fact]

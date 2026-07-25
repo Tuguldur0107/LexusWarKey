@@ -4,14 +4,16 @@ using Xunit;
 namespace LexusWarKey.Tests;
 
 /// <summary>Position-based skills exist for modes like LoD where abilities are random and their
-/// letters unknown, so the grid maths has to be exact — a wrong cell clicks the wrong spell.</summary>
+/// letters unknown, so the grid maths has to be exact — a wrong cell clicks the wrong spell.
+/// The card is Warcraft's real 4x3 (Move/Stop/Hold/Attack on top, abilities along the bottom);
+/// it was 4x2 once, and every calibration then put the middle row a full row off.</summary>
 public class CommandCardTests
 {
-    // The ability area is 4 wide and 2 tall, so calibration marks slot 1 and slot 8.
+    // The card is the full 4x3 grid, so calibration marks slot 1 (Move) and slot 12 (Cancel).
     private static CommandCard Calibrated() => new()
     {
         TopLeftX = 1000, TopLeftY = 800,         // slot 1 centre
-        BottomRightX = 1150, BottomRightY = 900, // slot 8 centre
+        BottomRightX = 1150, BottomRightY = 900, // slot 12 centre
     };
 
     [Fact]
@@ -23,10 +25,12 @@ public class CommandCardTests
     }
 
     [Theory]
-    [InlineData(0, 1000, 800)]   // row 0, col 0
-    [InlineData(3, 1150, 800)]   // row 0, col 3
-    [InlineData(4, 1000, 900)]   // row 1, col 0
-    [InlineData(7, 1150, 900)]   // row 1, col 3
+    [InlineData(0, 1000, 800)]    // row 0, col 0 — Move
+    [InlineData(3, 1150, 800)]    // row 0, col 3 — Attack
+    [InlineData(4, 1000, 850)]    // row 1, col 0 — Patrol
+    [InlineData(7, 1150, 850)]    // row 1, col 3
+    [InlineData(8, 1000, 900)]    // row 2, col 0 — first ability
+    [InlineData(11, 1150, 900)]   // row 2, col 3 — Cancel
     public void Slots_interpolate_across_the_two_calibrated_corners(int slot, int x, int y)
     {
         var p = Calibrated().PointFor(slot);
@@ -42,21 +46,22 @@ public class CommandCardTests
         Assert.Equal(1050, card.PointFor(1)!.X);
         Assert.Equal(1100, card.PointFor(2)!.X);
         Assert.Equal(1050, card.PointFor(5)!.X);
-        Assert.Equal(900, card.PointFor(5)!.Y);
+        Assert.Equal(850, card.PointFor(5)!.Y);
+        Assert.Equal(900, card.PointFor(9)!.Y);
     }
 
     [Fact]
     public void The_grid_matches_the_games_ability_area()
     {
         Assert.Equal(4, CommandCard.Columns);
-        Assert.Equal(2, CommandCard.Rows);
-        Assert.Equal(8, CommandCard.Slots);
+        Assert.Equal(3, CommandCard.Rows);
+        Assert.Equal(12, CommandCard.Slots);
         Assert.Equal(CommandCard.Slots, WarKeyProfile.CreateDefault().Skills.Count);
     }
 
     [Theory]
     [InlineData(-1)]
-    [InlineData(8)]
+    [InlineData(12)]
     [InlineData(99)]
     public void Out_of_range_slots_return_null(int slot)
     {
@@ -150,8 +155,10 @@ public class CommandCardTests
     }
 
     [Fact]
-    public void Cursor_movement_is_off_by_default_so_the_players_aim_is_never_stolen()
+    public void Posted_clicks_are_off_by_default_because_the_game_ignores_them()
     {
-        Assert.False(new WarKeyProfile().MoveCursorForClicks);
+        // The default path briefly moves the real cursor and restores it — the same thing
+        // Garena WarKey does, because that is the click Warcraft actually acts on.
+        Assert.False(new WarKeyProfile().UsePostedClicks);
     }
 }

@@ -16,7 +16,7 @@ public enum OverlayStep
 
 /// <summary>The in-game rebinding flow, kept free of Windows APIs so it can be tested.
 ///
-/// Slots are picked by clicking them in the overlay — with 6 inventory plus 8 skill slots
+/// Slots are picked by clicking them in the overlay — with 6 inventory plus 12 card slots
 /// there are not enough digits to go round, and clicking works even though the overlay
 /// never takes focus away from the game. Digits 1-6 stay as a shortcut for inventory.</summary>
 public sealed class OverlayConfigSession

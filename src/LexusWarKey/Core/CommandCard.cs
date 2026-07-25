@@ -2,43 +2,61 @@ namespace LexusWarKey.Core;
 
 public sealed record ScreenPoint(int X, int Y);
 
-/// <summary>Where Warcraft's 4x3 command card sits on screen.
+/// <summary>Where Warcraft's command card sits on screen.
+///
+/// The card is a single 4x3 grid of 12 buttons (Blizzard's CommandFunc.txt: Move/Stop/Hold/
+/// Attack across the TOP row, Patrol and friends in the middle, hero abilities along the
+/// BOTTOM row — LoD's extra skills spill into the middle row). Modelling anything smaller
+/// than the full card was this class's original sin: users naturally click its true corners
+/// when calibrating, and a 4x2 model then puts every middle-row slot a full row off.
 ///
 /// This exists because of game modes like LoD, where the abilities you get are random every
 /// match: their hotkey letters are unknown and can collide, so the only stable way to reach
-/// "the ability in slot N" is to click slot N. The user calibrates once by clicking the
-/// top-left and bottom-right buttons, and everything else is interpolated — which keeps this
-/// correct at any resolution or UI scale without guessing Blizzard's layout constants.</summary>
+/// "the ability in slot N" is to click slot N. Two known corners define the whole grid; the
+/// rest is interpolation, which keeps this correct at any resolution without hard-coding
+/// Blizzard's layout constants. Note the pitches genuinely differ per axis on widescreen —
+/// 1.26a stretches its 4:3 UI horizontally — so column step and row step must stay independent.</summary>
 public sealed class CommandCard
 {
-    /// <summary>Four across, two down — the ability area of the command card, which is the
-    /// part hero skills actually occupy (the bottom row is move/stop/hold).</summary>
     public const int Columns = 4;
-    public const int Rows = 2;
+    public const int Rows = 3;
     public const int Slots = Columns * Rows;
 
-    /// <summary>Centre of slot 1 (top-left button).</summary>
+    /// <summary>Centre of slot 1 — the top-left button (Move, in an unmodified game).</summary>
     public int TopLeftX { get; set; }
     public int TopLeftY { get; set; }
 
-    /// <summary>Centre of slot 8 (bottom-right button of the ability area).</summary>
+    /// <summary>Centre of slot 12 — the bottom-right button (Cancel / the last ability).</summary>
     public int BottomRightX { get; set; }
     public int BottomRightY { get; set; }
 
-    /// <summary>Slot centres must be far enough apart to describe a real grid — clicking the
-    /// same button twice used to leave a "calibrated" card that silently did nothing.</summary>
-    private const int MinimumSpan = 20;
+    /// <summary>The whole card spans hundreds of pixels at any playable resolution — even at
+    /// 800x600 its three column steps cover well over 100. A live profile was found "calibrated"
+    /// to a 54x25 box because the old threshold (20) only guarded against clicking the same
+    /// button twice; every interpolated slot then landed within one button of the first.</summary>
+    private const int MinimumSpanX = 80;
+    private const int MinimumSpanY = 50;
 
     public bool IsCalibrated =>
-        BottomRightX - TopLeftX >= MinimumSpan && BottomRightY - TopLeftY >= MinimumSpan;
+        BottomRightX - TopLeftX >= MinimumSpanX && BottomRightY - TopLeftY >= MinimumSpanY;
 
     /// <summary>Why a calibration attempt was rejected, or null when it is good.</summary>
     public static string? Validate(int x1, int y1, int x2, int y2)
     {
-        if (Math.Abs(x2 - x1) < MinimumSpan)
-            return "Хоёр товшилт хэвтээ чиглэлд хэт ойрхон байна — 1-р нүд, дараа нь 4 нүдээр баруун тийш байрлах 8-р нүдийг дарна уу.";
-        if (Math.Abs(y2 - y1) < MinimumSpan)
-            return "Хоёр товшилт босоо чиглэлд хэт ойрхон байна — 8-р нүд нь 1-р нүднээс НЭГ ЭГНЭЭ доор байна.";
+        if (Math.Abs(x2 - x1) < MinimumSpanX)
+            return "Хоёр цэг хэвтээ чиглэлд хэт ойрхон байна — зүүн дээд (Move) болон баруун доод булангийн нүд байх ёстой.";
+        if (Math.Abs(y2 - y1) < MinimumSpanY)
+            return "Хоёр цэг босоо чиглэлд хэт ойрхон байна — баруун доод нүд нь зүүн дээдээс ХОЁР эгнээ доор байна.";
+
+        // A grid this shape cannot exist on any real monitor: the game's UI is 4:3 stretched
+        // to the screen's aspect, so the step ratio stays within a narrow band (1.0 on 4:3,
+        // ~1.35 on 16:9, ~1.9 on 21:9). Far outside it means the wrong buttons were marked —
+        // most commonly a middle-row cell taken for the bottom corner.
+        var stepX = Math.Abs(x2 - x1) / (double)(Columns - 1);
+        var stepY = Math.Abs(y2 - y1) / (double)(Rows - 1);
+        if (stepX / stepY is < 0.7 or > 2.4)
+            return "Хоёр цэгийн хоорондох зай картын хэлбэрт тохирохгүй байна — буруу нүд тэмдэглэсэн бололтой. " +
+                   "Зүүн дээд болон баруун доод БУЛАНГИЙН нүдийг сонгоно уу.";
         return null;
     }
 

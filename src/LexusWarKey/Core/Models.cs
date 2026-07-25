@@ -48,14 +48,25 @@ public sealed class WarKeyProfile
     /// <summary>True = a skill key clicks its command-card slot; false = plain key remapping.</summary>
     public bool SkillsUsePosition { get; set; } = true;
 
-    /// <summary>Off by default: clicks are posted to the game window so the real cursor never
-    /// moves. Turn on only if the game ignores posted messages — then the cursor is moved and
-    /// put straight back, which is briefly visible.</summary>
+    /// <summary>Legacy setting from when posting messages was the primary click path. Kept so
+    /// old profile files still deserialise; no longer read anywhere.</summary>
     public bool MoveCursorForClicks { get; set; }
+
+    /// <summary>Off by default. Every Warcraft hotkey tool of the last twenty years — Garena's
+    /// WarKey included — clicks by briefly moving the real cursor and putting it back, because
+    /// the game resolves clicks against the actual cursor position, not the coordinates inside
+    /// a posted message. Posting is kept as an experiment for setups where it happens to work;
+    /// when it misses, the app falls back to the cursor move anyway.</summary>
+    public bool UsePostedClicks { get; set; }
 
     /// <summary>Where the user dragged the in-game overlay to; null = default corner.</summary>
     public double? OverlayLeft { get; set; }
     public double? OverlayTop { get; set; }
+
+    /// <summary>Cell size the user stretched the overlay grid to, so it reopens exactly the
+    /// size that matched their command card; null = the built-in default.</summary>
+    public double? OverlayCellWidth { get; set; }
+    public double? OverlayCellHeight { get; set; }
 
     /// <summary>Null until the app has asked once whether it should start with Windows.</summary>
     public bool? StartWithWindows { get; set; }
@@ -72,8 +83,8 @@ public sealed class WarKeyProfile
     public bool OnlyWhenGameFocused { get; set; } = true;
     public bool Enabled { get; set; } = true;
 
-    /// <summary>Warcraft's inventory is a 2x3 grid and the ability area of its command card is
-    /// 4x2, so the UI mirrors those shapes exactly instead of showing a flat list.</summary>
+    /// <summary>Warcraft's inventory is a 2x3 grid and its command card is 4x3, so the UI
+    /// mirrors those shapes exactly instead of showing a flat list.</summary>
     public const int InventorySlots = 6;
     public const int SkillSlots = CommandCard.Slots;
 
@@ -114,6 +125,34 @@ public sealed class WarKeyProfile
         CommandCard ??= new();
         foreach (var macro in ChatMacros)
             macro.Messages ??= new();
+
+        // Profiles from before v1.2 stored 8 skill slots (a 4x2 model of what is really a 4x3
+        // card). Those calibrations spanned the full card, so old row 0 landed on the real top
+        // row and old row 1 on the real bottom row. Reseat each binding on the slot it was
+        // actually clicking, rather than on the slot that shares its number.
+        if (Skills.Count == 8 && SkillSlots == 12)
+        {
+            var reseated = Enumerable.Range(0, SkillSlots).Select(_ => new KeyMap()).ToList();
+            for (var i = 0; i < 8; i++)
+                reseated[i < 4 ? i : i + 4] = Skills[i];
+            Skills = reseated;
+        }
+
+        // Several enabled macros on one key read as "this key sends all of these", but only the
+        // first was ever matched — the rest failed invisibly. Fold them into one macro in the
+        // order they were created, which is what the user was trying to build all along.
+        var mergedMacros = new List<ChatMacro>();
+        foreach (var macro in ChatMacros)
+        {
+            var twin = macro.Enabled && macro.HotkeyVk != 0
+                ? mergedMacros.FirstOrDefault(m => m.Enabled && m.HotkeyVk == macro.HotkeyVk)
+                : null;
+            if (twin is null)
+                mergedMacros.Add(macro);
+            else
+                twin.Messages.AddRange(macro.Messages);
+        }
+        ChatMacros = mergedMacros;
 
         foreach (var map in Inventory.Concat(Skills))
             if (map.FromVk == 0)

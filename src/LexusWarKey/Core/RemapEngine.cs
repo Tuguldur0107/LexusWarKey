@@ -59,11 +59,21 @@ public sealed class RemapEngine
 
     public event Action<bool>? ChatOpenChanged;
 
+    /// <summary>Physical keys currently held, so OS auto-repeat cannot toggle the tracker.
+    /// Holding Enter a beat too long used to flip it once per repeat and land on any parity.</summary>
+    private readonly HashSet<int> _observedHeld = new();
+
     /// <summary>Feeds one physical keystroke to the chat-line tracker. Call before <see cref="Decide"/>:
     /// Enter opens the line, the next Enter sends and closes it, Escape closes it without sending.
     /// Injected keys must never reach this — the caller filters them out already.</summary>
     public void ObserveKey(int vk, bool isKeyDown)
     {
+        if (!isKeyDown)
+        {
+            _observedHeld.Remove(vk);
+            return;
+        }
+
         // Outside the game there is no chat line to be open, and this doubles as the resync
         // for alt-tab, clicking away, and anything else that closed it behind our back.
         if (!_gameFocused())
@@ -72,7 +82,10 @@ public sealed class RemapEngine
             return;
         }
 
-        if (!isKeyDown || SuspendedForTyping)
+        if (!_observedHeld.Add(vk))
+            return; // auto-repeat of a held key, not a new press
+
+        if (SuspendedForTyping)
             return;
 
         if (vk == VirtualKeys.Enter)
@@ -172,8 +185,8 @@ public sealed class RemapEngine
             {
                 // Saying what is wrong without saying what to do is how this sat unresolved:
                 // calibration needs the game on screen, which is not obvious from the button.
-                problems.Add($"{boundSkills} чадварын товч ажиллахгүй байна — командын карт тохируулаагүй. " +
-                             "Warcraft III-аа нээгээд 'Командын карт тохируулах' дар (эсвэл тоглоом дотроос Ctrl + F6).");
+                problems.Add($"{boundSkills} чадварын товч ажиллахгүй байна — командын карт холбоогүй. " +
+                             "Тоглоом дотроо Ctrl+F6 дараад картаа тоглоомын карт дээр давхарлаж 'Холбох'-ыг дар.");
             }
         }
 

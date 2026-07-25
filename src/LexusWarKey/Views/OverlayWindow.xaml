@@ -24,21 +24,21 @@
             </Border>
 
             <TextBlock x:Name="PromptText" Foreground="#FFFFFF" FontSize="12" FontWeight="SemiBold"
-                       Margin="2,0,0,10" TextWrapping="Wrap" MaxWidth="520"
+                       Margin="2,0,0,10" TextWrapping="Wrap" MaxWidth="560"
                        Text="Нүд дээр дар, дараа нь товчоо дар" />
 
-            <!-- grids, laid out like the game -->
-            <StackPanel Orientation="Horizontal">
-                <StackPanel>
-                    <TextBlock Text="Inventory" Foreground="#FFFFFF" FontWeight="Bold" FontSize="12"
+            <!-- grids, laid out like the game: inventory 2x3, command card 4x3 -->
+            <StackPanel Orientation="Horizontal" VerticalAlignment="Bottom">
+                <StackPanel VerticalAlignment="Bottom">
+                    <TextBlock Text="Эд зүйл" Foreground="#FFFFFF" FontWeight="Bold" FontSize="12"
                                HorizontalAlignment="Center" Margin="0,0,0,6" />
-                    <ItemsControl x:Name="InventoryList" Width="132">
+                    <ItemsControl x:Name="InventoryList">
                         <ItemsControl.ItemsPanel>
                             <ItemsPanelTemplate><UniformGrid Columns="2" /></ItemsPanelTemplate>
                         </ItemsControl.ItemsPanel>
                         <ItemsControl.ItemTemplate>
                             <DataTemplate>
-                                <Border Width="58" Height="42" Margin="3" CornerRadius="6" Cursor="Hand"
+                                <Border Margin="2" CornerRadius="6" Cursor="Hand"
                                         Background="{Binding Background}" BorderBrush="{Binding Border}" BorderThickness="1.5"
                                         Tag="{Binding}" MouseLeftButtonDown="Slot_Click">
                                     <TextBlock Text="{Binding KeyName}" Foreground="#FFFFFF" FontSize="13"
@@ -49,16 +49,16 @@
                     </ItemsControl>
                 </StackPanel>
 
-                <StackPanel Margin="14,0,0,0">
-                    <TextBlock Text="Skills" Foreground="#FFFFFF" FontWeight="Bold" FontSize="12"
+                <StackPanel Margin="16,0,0,0" VerticalAlignment="Bottom">
+                    <TextBlock Text="Командын карт" Foreground="#FFFFFF" FontWeight="Bold" FontSize="12"
                                HorizontalAlignment="Center" Margin="0,0,0,6" />
-                    <ItemsControl x:Name="SkillList" Width="264">
+                    <ItemsControl x:Name="SkillList">
                         <ItemsControl.ItemsPanel>
                             <ItemsPanelTemplate><UniformGrid Columns="4" /></ItemsPanelTemplate>
                         </ItemsControl.ItemsPanel>
                         <ItemsControl.ItemTemplate>
                             <DataTemplate>
-                                <Border Width="58" Height="42" Margin="3" CornerRadius="6" Cursor="Hand"
+                                <Border Margin="2" CornerRadius="6" Cursor="Hand"
                                         Background="{Binding Background}" BorderBrush="{Binding Border}" BorderThickness="1.5"
                                         Tag="{Binding}" MouseLeftButtonDown="Slot_Click">
                                     <TextBlock Text="{Binding KeyName}" Foreground="#FFFFFF" FontSize="13"
@@ -70,8 +70,33 @@
                 </StackPanel>
             </StackPanel>
 
-            <TextBlock Foreground="#80FFFFFF" FontSize="10" Margin="2,10,0,0" TextWrapping="Wrap" MaxWidth="520"
-                       Text="Тоглоом фокусаа алддаггүй. Backspace = нүд цэвэрлэх · Esc = болих" />
+            <!-- link + resize row -->
+            <Grid Margin="2,12,0,0">
+                <StackPanel Orientation="Horizontal">
+                    <Border x:Name="LinkButton" Background="#26FFFFFF" CornerRadius="6" Cursor="Hand"
+                            BorderBrush="#80FFFFFF" BorderThickness="1" Padding="14,7"
+                            MouseLeftButtonDown="Link_Click">
+                        <TextBlock Text="🔗 Холбох" Foreground="#FFFFFF" FontSize="12" FontWeight="SemiBold" />
+                    </Border>
+                    <TextBlock Foreground="#80FFFFFF" FontSize="10" VerticalAlignment="Center" Margin="10,0,0,0"
+                               MaxWidth="320" TextWrapping="Wrap"
+                               Text="Картаа тоглоомын командын карт дээр яг давхарлаад Холбох дар" />
+                </StackPanel>
+                <Thumb x:Name="ResizeGrip" HorizontalAlignment="Right" VerticalAlignment="Bottom"
+                       Width="22" Height="22" Cursor="SizeNWSE">
+                    <Thumb.Template>
+                        <ControlTemplate TargetType="Thumb">
+                            <Border Background="#01FFFFFF">
+                                <TextBlock Text="◢" Foreground="#80FFFFFF" FontSize="13"
+                                           HorizontalAlignment="Center" VerticalAlignment="Center" />
+                            </Border>
+                        </ControlTemplate>
+                    </Thumb.Template>
+                </Thumb>
+            </Grid>
+
+            <TextBlock Foreground="#80FFFFFF" FontSize="10" Margin="2,8,0,0" TextWrapping="Wrap" MaxWidth="560"
+                       Text="Тоглоом фокусаа алддаггүй. ◢ = хэмжээ өөрчлөх · Backspace = нүд цэвэрлэх · Esc = болих" />
         </StackPanel>
     </Border>
 </Window>

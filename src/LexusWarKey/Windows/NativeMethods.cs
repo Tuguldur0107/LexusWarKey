@@ -124,6 +124,11 @@ internal static class NativeMethods
     [DllImport("user32.dll")]
     internal static extern bool ScreenToClient(IntPtr hWnd, ref POINT p);
 
+    internal struct RECT { public int Left, Top, Right, Bottom; }
+
+    [DllImport("user32.dll")]
+    internal static extern bool GetClientRect(IntPtr hWnd, out RECT rect);
+
     // ---- foreground window ----
 
     [DllImport("user32.dll")]

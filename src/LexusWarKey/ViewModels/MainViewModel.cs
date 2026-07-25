@@ -154,7 +154,7 @@ public sealed partial class MainViewModel : ObservableObject
     private readonly MouseCaptureService _mouse = new();
 
     [ObservableProperty] private bool _skillsUsePosition;
-    [ObservableProperty] private bool _moveCursorForClicks;
+    [ObservableProperty] private bool _usePostedClicks;
     [ObservableProperty] private bool _startWithWindows;
     [ObservableProperty] private bool _minimiseToTray;
 
@@ -182,7 +182,7 @@ public sealed partial class MainViewModel : ObservableObject
         _watcher = new GameWindowWatcher();
 
         _engine = new RemapEngine(() => _profile, _watcher.IsGameFocused);
-        _hook = new KeyboardHookService(_engine, _watcher.GameWindowHandle, () => _profile.MoveCursorForClicks);
+        _hook = new KeyboardHookService(_engine, _watcher.GameWindowHandle, () => _profile.UsePostedClicks);
         _hook.ToggleRequested += () => Application.Current?.Dispatcher.BeginInvoke(() => IsEnabled = !IsEnabled);
         _hook.OverlayToggleRequested += () => Application.Current?.Dispatcher.BeginInvoke(ToggleOverlay);
         _hook.ConfigKeyPressed += vk => Application.Current?.Dispatcher.BeginInvoke(() => OnOverlayKey(vk));
@@ -191,7 +191,7 @@ public sealed partial class MainViewModel : ObservableObject
         _isEnabled = _profile.Enabled;
         _onlyWhenGameFocused = _profile.OnlyWhenGameFocused;
         _skillsUsePosition = _profile.SkillsUsePosition;
-        _moveCursorForClicks = _profile.MoveCursorForClicks;
+        _usePostedClicks = _profile.UsePostedClicks;
         _minimiseToTray = _profile.MinimiseToTray;
         _autoInstallUpdates = _profile.AutoInstallUpdates;
         _startWithWindows = _startup.IsEnabled();
@@ -354,7 +354,7 @@ public sealed partial class MainViewModel : ObservableObject
     public ObservableCollection<ChatMacroRow> ChatRows { get; }
 
     partial void OnSkillsUsePositionChanged(bool value) { _profile.SkillsUsePosition = value; Save(); RefreshCalibration(); }
-    partial void OnMoveCursorForClicksChanged(bool value) { _profile.MoveCursorForClicks = value; Save(); }
+    partial void OnUsePostedClicksChanged(bool value) { _profile.UsePostedClicks = value; Save(); }
     partial void OnMinimiseToTrayChanged(bool value) { _profile.MinimiseToTray = value; Save(); }
 
     partial void OnStartWithWindowsChanged(bool value)
@@ -379,8 +379,8 @@ public sealed partial class MainViewModel : ObservableObject
         CalibrationText = !SkillsUsePosition
             ? "Байрлалын горим унтраалттай — товч зүгээр л өөр товч руу шилждэг."
             : card.IsCalibrated
-                ? $"Тохируулсан: 1-р нүд ({card.TopLeftX}, {card.TopLeftY}) → 8-р нүд ({card.BottomRightX}, {card.BottomRightY})"
-                : "Тохируулаагүй — Warcraft III-аа нээсний дараа доорх товчийг дараад тоглоом дотроо 2 удаа дар.";
+                ? $"Холбогдсон: 1-р нүд ({card.TopLeftX}, {card.TopLeftY}) → 12-р нүд ({card.BottomRightX}, {card.BottomRightY})"
+                : "Холбоогүй — тоглоом дотроо Ctrl+F6 дараад картаа тоглоомын командын карт дээр давхарлаж \"Холбох\"-ыг дар.";
     }
 
     [RelayCommand]
@@ -413,11 +413,11 @@ public sealed partial class MainViewModel : ObservableObject
         IsCalibrating = true;
 
         var lead = reason is null ? "" : reason + "\n";
-        ShowCalibrationOverlay($"{lead}1/2 — Командын картны ЗҮҮН ДЭЭД чадварын нүдийг дар");
+        ShowCalibrationOverlay($"{lead}1/2 — Командын картны ЗҮҮН ДЭЭД нүдийг дар (Move товч)");
 
         _mouse.CaptureNextClick((x1, y1) => Application.Current?.Dispatcher.BeginInvoke(() =>
         {
-            ShowCalibrationOverlay("2/2 — Одоо БАРУУН ДООД нүдийг дар (4 баганын хамгийн баруун, доод эгнээ)");
+            ShowCalibrationOverlay("2/2 — Одоо картын БАРУУН ДООД булангийн нүдийг дар (Cancel байрладаг нүд)");
 
             _mouse.CaptureNextClick((x2, y2) => Application.Current?.Dispatcher.BeginInvoke(() =>
             {
@@ -572,6 +572,7 @@ public sealed partial class MainViewModel : ObservableObject
         if (_overlay is not null)
             return;
         _overlay = new OverlayWindow();
+        _overlay.SetCellSize(_profile.OverlayCellWidth, _profile.OverlayCellHeight);
         _overlay.SlotClicked += (group, index) =>
         {
             _overlaySession.SelectSlot(group, index);
@@ -583,6 +584,42 @@ public sealed partial class MainViewModel : ObservableObject
             _profile.OverlayTop = top;
             Save();
         };
+        _overlay.Resized += (cellW, cellH) =>
+        {
+            _profile.OverlayCellWidth = cellW;
+            _profile.OverlayCellHeight = cellH;
+            Save();
+        };
+        _overlay.LinkRequested += (topLeft, bottomRight) =>
+        {
+            // The user has laid the panel's 4x3 grid over the game's own card, so the first
+            // and last cell centres ARE the calibration — no corner clicking, no prompts.
+            var error = CommandCard.Validate(topLeft.X, topLeft.Y, bottomRight.X, bottomRight.Y);
+            if (error is not null)
+            {
+                RenderOverlayPrompt("⚠ " + error);
+                return;
+            }
+
+            var card = _profile.CommandCard;
+            card.TopLeftX = topLeft.X;
+            card.TopLeftY = topLeft.Y;
+            card.BottomRightX = bottomRight.X;
+            card.BottomRightY = bottomRight.Y;
+            Save();
+            RefreshCalibration();
+            RefreshConflicts();
+            RenderOverlayPrompt("✓ Холбогдлоо — товч бүр өөрийн нүдээ дарна. Ctrl+F6 дарж хаагаад тоглоорой.");
+        };
+    }
+
+    /// <summary>Redraws the overlay with a specific message in place of the usual prompt.</summary>
+    private void RenderOverlayPrompt(string prompt)
+    {
+        _overlay?.ShowSlots(
+            BuildSlots(SlotGroup.Inventory, _profile.Inventory),
+            BuildSlots(SlotGroup.Skill, _profile.Skills),
+            prompt);
     }
 
     private void CloseOverlay()
