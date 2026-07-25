@@ -50,6 +50,9 @@ public partial class OverlayWindow : Window
     /// with no corner-clicking ceremony.</summary>
     public event Action<ScreenPoint, ScreenPoint>? LinkRequested;
 
+    /// <summary>Raised when the user asks to SEE where the twelve slots will click.</summary>
+    public event Action? MarkersRequested;
+
     public void ShowSlots(IReadOnlyList<OverlaySlot> inventory, IReadOnlyList<OverlaySlot> skills, string prompt)
     {
         InventoryList.ItemsSource = inventory;
@@ -119,6 +122,12 @@ public partial class OverlayWindow : Window
         var last = CellCentreOnScreen(CommandCard.Slots - 1);
         if (first is not null && last is not null)
             LinkRequested?.Invoke(first, last);
+    }
+
+    private void Markers_Click(object sender, MouseButtonEventArgs e)
+    {
+        e.Handled = true;
+        MarkersRequested?.Invoke();
     }
 
     /// <summary>Physical screen centre of a command-card cell. WPF under PerMonitorV2 returns

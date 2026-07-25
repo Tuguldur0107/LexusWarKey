@@ -1,0 +1,246 @@
+using System.Windows;
+using System.Windows.Controls;
+using System.Windows.Input;
+using System.Windows.Media;
+using System.Windows.Shapes;
+using LexusWarKey.Core;
+using LexusWarKey.Windows;
+
+namespace LexusWarKey.Views;
+
+/// <summary>Shows a numbered ring exactly where each command-card slot will click, and lets
+/// the user DRAG any ring onto the real button and save. This is the escape hatch for every
+/// resolution, UI mod and stretched-console quirk at once: when the interpolated grid is even
+/// slightly off, the user corrects it by eye in seconds instead of fighting the calibration.
+///
+/// The window covers the screen but is layered, so only the drawn rings and buttons catch the
+/// mouse — everywhere else clicks fall straight through to the game. It never takes focus.</summary>
+public sealed class SlotAdjustWindow : Window
+{
+    private static SlotAdjustWindow? _current;
+
+    private readonly CommandCard _card;
+    private readonly Action _onSaved;
+    private readonly Canvas _canvas = new();
+    private readonly Grid?[] _rings = new Grid?[CommandCard.Slots];
+
+    private Grid? _dragging;
+    private Point _dragOffset;
+
+    /// <summary>Physical top-left of the virtual screen — (0,0) only when the primary monitor
+    /// is the leftmost/topmost one. Every stored point is offset by this before drawing, and
+    /// added back on save, so rings land correctly on any monitor.</summary>
+    private int _deviceLeft;
+    private int _deviceTop;
+
+    private const double Ring = 38;
+
+    private SlotAdjustWindow(CommandCard card, Action onSaved)
+    {
+        _card = card;
+        _onSaved = onSaved;
+
+        WindowStyle = WindowStyle.None;
+        AllowsTransparency = true;
+        Background = null; // a null background is not hit-testable: empty space belongs to the game
+        Topmost = true;
+        ShowInTaskbar = false;
+        ShowActivated = false;
+        ResizeMode = ResizeMode.NoResize;
+        Content = _canvas;
+
+        SourceInitialized += (_, _) =>
+        {
+            WindowChrome.MakeNonActivating(this);
+
+            // Cover the whole VIRTUAL screen, not just the primary monitor. The card can be
+            // calibrated on any monitor, and a window pinned to the primary would silently
+            // clip every ring on the others — the diagnostic failing exactly where a
+            // multi-monitor setup needs it most.
+            _deviceLeft = NativeMethods.GetSystemMetrics(NativeMethods.SM_XVIRTUALSCREEN);
+            _deviceTop = NativeMethods.GetSystemMetrics(NativeMethods.SM_YVIRTUALSCREEN);
+            var deviceWidth = NativeMethods.GetSystemMetrics(NativeMethods.SM_CXVIRTUALSCREEN);
+            var deviceHeight = NativeMethods.GetSystemMetrics(NativeMethods.SM_CYVIRTUALSCREEN);
+            var hwnd = new System.Windows.Interop.WindowInteropHelper(this).Handle;
+            NativeMethods.MoveWindow(hwnd, _deviceLeft, _deviceTop, deviceWidth, deviceHeight, false);
+
+            BuildVisuals();
+        };
+    }
+
+    /// <summary>Opens the adjuster (closing any previous one). <paramref name="onSaved"/> runs
+    /// only when the user presses save.</summary>
+    public static void Open(CommandCard card, Action onSaved)
+    {
+        _current?.Close();
+        var opened = new SlotAdjustWindow(card, onSaved);
+        opened.Closed += (_, _) =>
+        {
+            if (ReferenceEquals(_current, opened))
+                _current = null;
+        };
+        _current = opened;
+        opened.Show();
+    }
+
+    private void BuildVisuals()
+    {
+        var fromDevice = PresentationSource.FromVisual(this)?.CompositionTarget?.TransformFromDevice
+                         ?? Matrix.Identity;
+
+        for (var slot = 0; slot < CommandCard.Slots; slot++)
+        {
+            if (_card.PointFor(slot) is not { } p)
+                continue;
+
+            var dip = fromDevice.Transform(new Point(p.X - _deviceLeft, p.Y - _deviceTop));
+            var ring = BuildRing(slot);
+            _rings[slot] = ring;
+            Canvas.SetLeft(ring, dip.X - Ring / 2);
+            Canvas.SetTop(ring, dip.Y - Ring / 2);
+            _canvas.Children.Add(ring);
+        }
+
+        _canvas.Children.Add(BuildToolbar());
+    }
+
+    private Grid BuildRing(int slot)
+    {
+        var ring = new Grid { Width = Ring, Height = Ring, Cursor = Cursors.SizeAll, Tag = slot };
+        ring.Children.Add(new Ellipse
+        {
+            Stroke = Brushes.White,
+            StrokeThickness = 2.5,
+            // A faint fill so the whole disc is grabbable, not just the 2.5px outline.
+            Fill = new SolidColorBrush(Color.FromArgb(0x58, 0x00, 0x00, 0x00)),
+        });
+        ring.Children.Add(new TextBlock
+        {
+            Text = (slot + 1).ToString(),
+            Foreground = Brushes.White,
+            FontWeight = FontWeights.Bold,
+            FontSize = 13,
+            HorizontalAlignment = HorizontalAlignment.Center,
+            VerticalAlignment = VerticalAlignment.Center,
+        });
+
+        ring.MouseLeftButtonDown += (_, e) =>
+        {
+            _dragging = ring;
+            _dragOffset = e.GetPosition(ring);
+            ring.CaptureMouse();
+            e.Handled = true;
+        };
+        ring.MouseMove += (_, e) =>
+        {
+            if (_dragging != ring)
+                return;
+            var at = e.GetPosition(_canvas);
+            Canvas.SetLeft(ring, at.X - _dragOffset.X);
+            Canvas.SetTop(ring, at.Y - _dragOffset.Y);
+        };
+        ring.MouseLeftButtonUp += (_, _) =>
+        {
+            _dragging = null;
+            ring.ReleaseMouseCapture();
+        };
+
+        return ring;
+    }
+
+    private FrameworkElement BuildToolbar()
+    {
+        var save = ToolbarButton("💾 Хадгалах", "#2E5C34");
+        save.MouseLeftButtonDown += (_, e) =>
+        {
+            e.Handled = true;
+            SavePositions();
+        };
+
+        var cancel = ToolbarButton("✕ Болих", "#5C2E2E");
+        cancel.MouseLeftButtonDown += (_, e) =>
+        {
+            e.Handled = true;
+            Close();
+        };
+
+        var bar = new Border
+        {
+            Background = new SolidColorBrush(Color.FromArgb(0xCC, 0, 0, 0)),
+            BorderBrush = new SolidColorBrush(Color.FromArgb(0x66, 0xFF, 0xFF, 0xFF)),
+            BorderThickness = new Thickness(1),
+            CornerRadius = new CornerRadius(10),
+            Padding = new Thickness(14, 10, 14, 10),
+            Child = new StackPanel
+            {
+                Children =
+                {
+                    new TextBlock
+                    {
+                        Text = "Цагираг бүр = тэр нүдийг чухам хаана дарахыг заана. Буруу байвал чирээд зөв товчин дээр нь тавь.",
+                        Foreground = Brushes.White,
+                        FontSize = 12,
+                        Margin = new Thickness(0, 0, 0, 8),
+                        MaxWidth = 420,
+                        TextWrapping = TextWrapping.Wrap,
+                    },
+                    new StackPanel { Orientation = Orientation.Horizontal, Children = { save, cancel } },
+                },
+            },
+        };
+
+        // Top-centre: far from the bottom-right card, so it never sits on what is being adjusted.
+        // ActualWidth, not Width — the window is sized natively with MoveWindow, so Width is NaN.
+        bar.Loaded += (_, _) =>
+        {
+            Canvas.SetLeft(bar, (ActualWidth - bar.ActualWidth) / 2);
+            Canvas.SetTop(bar, 32);
+        };
+        return bar;
+    }
+
+    private static Border ToolbarButton(string text, string background)
+    {
+        return new Border
+        {
+            Background = (SolidColorBrush)new BrushConverter().ConvertFromString(background)!,
+            CornerRadius = new CornerRadius(6),
+            Padding = new Thickness(16, 8, 16, 8),
+            Margin = new Thickness(0, 0, 8, 0),
+            Cursor = Cursors.Hand,
+            Child = new TextBlock
+            {
+                Text = text,
+                Foreground = Brushes.White,
+                FontSize = 13,
+                FontWeight = FontWeights.SemiBold,
+            },
+        };
+    }
+
+    private void SavePositions()
+    {
+        var toDevice = PresentationSource.FromVisual(this)?.CompositionTarget?.TransformToDevice
+                       ?? Matrix.Identity;
+
+        var points = new List<ScreenPoint>(CommandCard.Slots);
+        for (var slot = 0; slot < CommandCard.Slots; slot++)
+        {
+            if (_rings[slot] is not { } ring)
+            {
+                Close();
+                return; // a slot without a ring means the card lost calibration mid-edit — bail out
+            }
+
+            var centreDip = new Point(Canvas.GetLeft(ring) + Ring / 2, Canvas.GetTop(ring) + Ring / 2);
+            var device = toDevice.Transform(centreDip);
+            points.Add(new ScreenPoint(
+                (int)Math.Round(device.X) + _deviceLeft,
+                (int)Math.Round(device.Y) + _deviceTop));
+        }
+
+        _card.SetOverrides(points);
+        _onSaved();
+        Close();
+    }
+}

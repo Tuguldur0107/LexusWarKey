@@ -154,7 +154,6 @@ public sealed partial class MainViewModel : ObservableObject
     private readonly MouseCaptureService _mouse = new();
 
     [ObservableProperty] private bool _skillsUsePosition;
-    [ObservableProperty] private bool _usePostedClicks;
     [ObservableProperty] private bool _startWithWindows;
     [ObservableProperty] private bool _minimiseToTray;
 
@@ -182,7 +181,7 @@ public sealed partial class MainViewModel : ObservableObject
         _watcher = new GameWindowWatcher();
 
         _engine = new RemapEngine(() => _profile, _watcher.IsGameFocused);
-        _hook = new KeyboardHookService(_engine, _watcher.GameWindowHandle, () => _profile.UsePostedClicks);
+        _hook = new KeyboardHookService(_engine);
         _hook.ToggleRequested += () => Application.Current?.Dispatcher.BeginInvoke(() => IsEnabled = !IsEnabled);
         _hook.OverlayToggleRequested += () => Application.Current?.Dispatcher.BeginInvoke(ToggleOverlay);
         _hook.ConfigKeyPressed += vk => Application.Current?.Dispatcher.BeginInvoke(() => OnOverlayKey(vk));
@@ -191,7 +190,6 @@ public sealed partial class MainViewModel : ObservableObject
         _isEnabled = _profile.Enabled;
         _onlyWhenGameFocused = _profile.OnlyWhenGameFocused;
         _skillsUsePosition = _profile.SkillsUsePosition;
-        _usePostedClicks = _profile.UsePostedClicks;
         _minimiseToTray = _profile.MinimiseToTray;
         _autoInstallUpdates = _profile.AutoInstallUpdates;
         _startWithWindows = _startup.IsEnabled();
@@ -354,7 +352,6 @@ public sealed partial class MainViewModel : ObservableObject
     public ObservableCollection<ChatMacroRow> ChatRows { get; }
 
     partial void OnSkillsUsePositionChanged(bool value) { _profile.SkillsUsePosition = value; Save(); RefreshCalibration(); }
-    partial void OnUsePostedClicksChanged(bool value) { _profile.UsePostedClicks = value; Save(); }
     partial void OnMinimiseToTrayChanged(bool value) { _profile.MinimiseToTray = value; Save(); }
 
     partial void OnStartWithWindowsChanged(bool value)
@@ -441,6 +438,7 @@ public sealed partial class MainViewModel : ObservableObject
                 card.TopLeftY = Math.Min(y1, y2);
                 card.BottomRightX = Math.Max(x1, x2);
                 card.BottomRightY = Math.Max(y1, y2);
+                card.Overrides = null; // a fresh calibration supersedes hand-dragged rings
 
                 IsCalibrating = false;
                 Save();
@@ -606,10 +604,27 @@ public sealed partial class MainViewModel : ObservableObject
             card.TopLeftY = topLeft.Y;
             card.BottomRightX = bottomRight.X;
             card.BottomRightY = bottomRight.Y;
+            // A fresh alignment supersedes any hand-dragged ring positions from the old one.
+            card.Overrides = null;
             Save();
             RefreshCalibration();
             RefreshConflicts();
-            RenderOverlayPrompt("✓ Холбогдлоо — товч бүр өөрийн нүдээ дарна. Ctrl+F6 дарж хаагаад тоглоорой.");
+            RenderOverlayPrompt("✓ Холбогдлоо — 📍 Шалгах дарж цагираг бүр өөрийн нүдэн дээрээ буусныг шалгаарай. Ctrl+F6 = хаах.");
+        };
+        _overlay.MarkersRequested += () =>
+        {
+            if (!_profile.CommandCard.IsCalibrated)
+            {
+                RenderOverlayPrompt("⚠ Эхлээд Холбох хэрэгтэй — торыг тоглоомын картан дээр давхарлаад 🔗 Холбох дар.");
+                return;
+            }
+
+            SlotAdjustWindow.Open(_profile.CommandCard, () =>
+            {
+                Save();
+                RefreshCalibration();
+                RenderOverlayPrompt("✓ Нүд бүрийн байрлал хадгалагдлаа — товч тэр цагирган дээрээ дарна.");
+            });
         };
     }
 

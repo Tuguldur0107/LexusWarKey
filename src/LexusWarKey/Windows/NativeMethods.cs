@@ -110,24 +110,16 @@ internal static class NativeMethods
     [DllImport("user32.dll")]
     internal static extern bool SetCursorPos(int x, int y);
 
-    // Posting messages straight to the game window clicks its UI without ever
-    // touching the real cursor — essential while someone is actually playing.
-    internal const int WM_MOUSEMOVE = 0x0200;
-    internal const int WM_LBUTTONUP = 0x0202;
-    internal const int WM_RBUTTONDOWN = 0x0204, WM_RBUTTONUP = 0x0205;
-    internal const int MK_LBUTTON = 0x0001, MK_RBUTTON = 0x0002;
+    // ---- virtual screen (the bounding box of every monitor, in physical pixels) ----
+
+    internal const int SM_XVIRTUALSCREEN = 76, SM_YVIRTUALSCREEN = 77;
+    internal const int SM_CXVIRTUALSCREEN = 78, SM_CYVIRTUALSCREEN = 79;
+
+    [DllImport("user32.dll")]
+    internal static extern int GetSystemMetrics(int nIndex);
 
     [DllImport("user32.dll", SetLastError = true)]
-    [return: MarshalAs(UnmanagedType.Bool)]
-    internal static extern bool PostMessage(IntPtr hWnd, uint msg, IntPtr wParam, IntPtr lParam);
-
-    [DllImport("user32.dll")]
-    internal static extern bool ScreenToClient(IntPtr hWnd, ref POINT p);
-
-    internal struct RECT { public int Left, Top, Right, Bottom; }
-
-    [DllImport("user32.dll")]
-    internal static extern bool GetClientRect(IntPtr hWnd, out RECT rect);
+    internal static extern bool MoveWindow(IntPtr hWnd, int x, int y, int width, int height, bool repaint);
 
     // ---- foreground window ----
 

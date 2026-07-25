@@ -52,11 +52,10 @@ public sealed class WarKeyProfile
     /// old profile files still deserialise; no longer read anywhere.</summary>
     public bool MoveCursorForClicks { get; set; }
 
-    /// <summary>Off by default. Every Warcraft hotkey tool of the last twenty years — Garena's
-    /// WarKey included — clicks by briefly moving the real cursor and putting it back, because
-    /// the game resolves clicks against the actual cursor position, not the coordinates inside
-    /// a posted message. Posting is kept as an experiment for setups where it happens to work;
-    /// when it misses, the app falls back to the cursor move anyway.</summary>
+    /// <summary>Retired experiment, kept only so old profile files still deserialise. Posted
+    /// clicks were confirmed ignored by the game on a real machine (the user enabled this and
+    /// every skill key went dead), so clicks always move the real cursor now — the same thing
+    /// every Warcraft tool has done for twenty years.</summary>
     public bool UsePostedClicks { get; set; }
 
     /// <summary>Where the user dragged the in-game overlay to; null = default corner.</summary>

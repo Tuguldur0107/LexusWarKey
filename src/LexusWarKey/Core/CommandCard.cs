@@ -30,6 +30,12 @@ public sealed class CommandCard
     public int BottomRightX { get; set; }
     public int BottomRightY { get; set; }
 
+    /// <summary>Hand-placed positions, one per slot, set by dragging the rings in the adjust
+    /// window. A null entry (or a missing list) falls back to corner interpolation. This exists
+    /// because no formula survives contact with every resolution and UI mod — when the maths
+    /// puts a ring half a button off, the user just drags it onto the button and keeps playing.</summary>
+    public List<ScreenPoint?>? Overrides { get; set; }
+
     /// <summary>The whole card spans hundreds of pixels at any playable resolution — even at
     /// 800x600 its three column steps cover well over 100. A live profile was found "calibrated"
     /// to a 54x25 box because the old threshold (20) only guarded against clicking the same
@@ -67,6 +73,11 @@ public sealed class CommandCard
         if (!IsCalibrated || slotIndex < 0 || slotIndex >= Slots)
             return null;
 
+        // A hand-placed position always beats the formula — it is the user telling us
+        // exactly where the button really is.
+        if (Overrides is not null && slotIndex < Overrides.Count && Overrides[slotIndex] is { } placed)
+            return placed;
+
         var col = slotIndex % Columns;
         var row = slotIndex / Columns;
 
@@ -82,5 +93,13 @@ public sealed class CommandCard
     public void Clear()
     {
         TopLeftX = TopLeftY = BottomRightX = BottomRightY = 0;
+        Overrides = null;
+    }
+
+    /// <summary>Replaces every slot position with an explicit point. Used when the user has
+    /// dragged the rings into place — from then on the grid is exactly what they see.</summary>
+    public void SetOverrides(IReadOnlyList<ScreenPoint> points)
+    {
+        Overrides = points.Select(p => (ScreenPoint?)p).ToList();
     }
 }

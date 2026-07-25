@@ -91,41 +91,11 @@ public static class InputSender
 
     public static bool IsKeyHeld(int vk) => (NativeMethods.GetAsyncKeyState(vk) & 0x8000) != 0;
 
-    /// <summary>Clicks a point inside the game window by posting messages to it.
-    /// The physical cursor never moves — but note PostMessage succeeding only means the
-    /// message was queued, never that the game acted on it, which is why the caller treats
-    /// this whole path as an experiment with a cursor-move fallback behind it.</summary>
-    public static bool ClickInWindow(IntPtr hwnd, int screenX, int screenY, bool rightClick)
-    {
-        if (hwnd == IntPtr.Zero)
-            return false;
-
-        var point = new NativeMethods.POINT { X = screenX, Y = screenY };
-        if (!NativeMethods.ScreenToClient(hwnd, ref point))
-            return false;
-
-        // A stale calibration — window moved, resolution changed, other monitor — converts to
-        // a point outside the client area. The game discards such a message without a sound;
-        // returning false instead hands the click to the fallback, which can still land it.
-        if (point.X < 0 || point.Y < 0
-            || !NativeMethods.GetClientRect(hwnd, out var rect)
-            || point.X >= rect.Right || point.Y >= rect.Bottom)
-            return false;
-
-        var lParam = (IntPtr)((point.Y << 16) | (point.X & 0xFFFF));
-        var down = rightClick ? NativeMethods.WM_RBUTTONDOWN : NativeMethods.WM_LBUTTONDOWN;
-        var up = rightClick ? NativeMethods.WM_RBUTTONUP : NativeMethods.WM_LBUTTONUP;
-        var button = (IntPtr)(rightClick ? NativeMethods.MK_RBUTTON : NativeMethods.MK_LBUTTON);
-
-        var ok = NativeMethods.PostMessage(hwnd, NativeMethods.WM_MOUSEMOVE, IntPtr.Zero, lParam);
-        ok &= NativeMethods.PostMessage(hwnd, (uint)down, button, lParam);
-        Thread.Sleep(8);
-        ok &= NativeMethods.PostMessage(hwnd, (uint)up, IntPtr.Zero, lParam);
-        return ok;
-    }
-
-    /// <summary>Fallback that really does move the cursor and puts it back. Only used when
-    /// the user explicitly opts in, because a cursor jump during a fight is disruptive.</summary>
+    /// <summary>Clicks by moving the real cursor to the point and straight back — the whole
+    /// excursion is about 40ms. Posting messages to the game window was tried first and looked
+    /// perfect in code, but Warcraft resolves clicks against the actual cursor position, so
+    /// posted clicks were silently ignored (confirmed on the user's own machine — and it is
+    /// why every Warcraft tool of the last twenty years moves the cursor instead).</summary>
     public static void ClickAt(int x, int y, bool rightClick)
     {
         NativeMethods.GetCursorPos(out var original);

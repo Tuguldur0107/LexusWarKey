@@ -14,8 +14,6 @@ public sealed class KeyboardHookService : IDisposable
 {
     private readonly RemapEngine _engine;
     private readonly NativeMethods.LowLevelKeyboardProc _callback; // kept alive; a collected delegate crashes the hook
-    private readonly Func<IntPtr> _gameWindow;
-    private readonly Func<bool> _usePostedClicks;
     private IntPtr _hook = IntPtr.Zero;
     private long _lastCallbackTicks;
 
@@ -28,11 +26,9 @@ public sealed class KeyboardHookService : IDisposable
     /// <summary>1 while a chat macro is typing. Two at once would interleave keystrokes.</summary>
     private int _macroInFlight;
 
-    public KeyboardHookService(RemapEngine engine, Func<IntPtr> gameWindow, Func<bool> usePostedClicks)
+    public KeyboardHookService(RemapEngine engine)
     {
         _engine = engine;
-        _gameWindow = gameWindow;
-        _usePostedClicks = usePostedClicks;
         _callback = HookCallback;
     }
 
@@ -193,10 +189,8 @@ public sealed class KeyboardHookService : IDisposable
                     if (!_actionHeld.Add(vk))
                         return 1; // OS auto-repeat of a held key — one press, one click
                     var right = decision.RightClick;
-                    var hwnd = _gameWindow();
-                    var usePosted = _usePostedClicks();
                     // Clicking involves sleeps; doing it inside the hook would freeze input.
-                    ThreadPool.QueueUserWorkItem(_ => SafeClick(hwnd, point.X, point.Y, right, usePosted));
+                    ThreadPool.QueueUserWorkItem(_ => SafeClick(point.X, point.Y, right));
                     return 1;
 
                 case RemapAction.ClickSlot:
@@ -225,17 +219,16 @@ public sealed class KeyboardHookService : IDisposable
         }
     }
 
-    /// <summary>The default path moves the real cursor, clicks, and puts it back — the same
-    /// thing Garena's WarKey and every other Warcraft tool does, because the game resolves a
-    /// click against the actual cursor, not the coordinates inside a posted message. Posting
-    /// stays available as an opt-in experiment, with the cursor move as its fallback.</summary>
-    private static void SafeClick(IntPtr hwnd, int x, int y, bool rightClick, bool usePosted)
+    /// <summary>Moves the real cursor, clicks, and puts it back — the same thing Garena's
+    /// WarKey and every other Warcraft tool does, because the game resolves a click against
+    /// the actual cursor. There used to be a PostMessage mode that never moved the cursor;
+    /// it was removed after proving, on a real machine, that the game simply ignores it.</summary>
+    private static void SafeClick(int x, int y, bool rightClick)
     {
         try
         {
-            if (usePosted && InputSender.ClickInWindow(hwnd, x, y, rightClick))
-                return;
             InputSender.ClickAt(x, y, rightClick);
+            DiagnosticLog.Write($"click ({x},{y}) right={rightClick}");
         }
         catch { /* a failed click must never take the app down */ }
     }

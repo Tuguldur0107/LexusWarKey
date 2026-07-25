@@ -213,9 +213,8 @@
                                                 Command="{Binding ClearCalibrationCommand}" Margin="8,0,0,0"
                                                 Visibility="{Binding IsCalibrated, Converter={StaticResource BoolToVis}}" />
                                     </StackPanel>
-                                    <CheckBox IsChecked="{Binding UsePostedClicks}" Margin="27,12,0,0"
-                                              Content="Туршилт: курсор огт хөдөлгөхгүй дарах (олон тохиолдолд тоглоом хүлээж авдаггүй)"
-                                              ToolTip="Идэвхгүй үед курсор нүд рүү очоод дарж, тэр даруй буцна — Garena WarKey-ийн ажилладаг арга. Асаавал эхлээд далд аргаар оролдоно." />
+                                    <TextBlock Style="{StaticResource Dim}" Margin="27,12,0,0" TextWrapping="Wrap"
+                                               Text="Дарахдаа курсорыг агшин зуур (~40мс) нүд рүү аваачиж дараад буцаана — Garena WarKey-тэй яг ижил арга. Тоглоом зөвхөн жинхэнэ курсорын товшилтыг хүлээж авдаг." />
                                 </StackPanel>
                             </Border>
                         </StackPanel>

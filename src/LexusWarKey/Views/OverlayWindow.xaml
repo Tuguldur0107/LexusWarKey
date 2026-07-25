@@ -78,8 +78,14 @@
                             MouseLeftButtonDown="Link_Click">
                         <TextBlock Text="🔗 Холбох" Foreground="#FFFFFF" FontSize="12" FontWeight="SemiBold" />
                     </Border>
+                    <Border x:Name="MarkerButton" Background="#26FFFFFF" CornerRadius="6" Cursor="Hand"
+                            BorderBrush="#80FFFFFF" BorderThickness="1" Padding="14,7" Margin="8,0,0,0"
+                            MouseLeftButtonDown="Markers_Click"
+                            ToolTip="Товч дарахад ЧУХАМ ХААНА товшихыг дугаартай цагирагаар харуулна.&#10;Цагираг бүрийг чирж зөөгөөд Хадгалах дарвал тэр байрлал ашиглагдана.">
+                        <TextBlock Text="📍 Шалгах · Засах" Foreground="#FFFFFF" FontSize="12" FontWeight="SemiBold" />
+                    </Border>
                     <TextBlock Foreground="#80FFFFFF" FontSize="10" VerticalAlignment="Center" Margin="10,0,0,0"
-                               MaxWidth="320" TextWrapping="Wrap"
+                               MaxWidth="270" TextWrapping="Wrap"
                                Text="Картаа тоглоомын командын карт дээр яг давхарлаад Холбох дар" />
                 </StackPanel>
                 <Thumb x:Name="ResizeGrip" HorizontalAlignment="Right" VerticalAlignment="Bottom"
