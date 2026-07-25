@@ -102,14 +102,17 @@ public static class InputSender
         try
         {
             NativeMethods.SetCursorPos(x, y);
-            Thread.Sleep(12); // let the game notice the cursor before the button goes down
+            // One frame for the game to sample the new position. This dwell cannot be zero —
+            // the game reads the cursor on its own schedule, and a click processed after the
+            // cursor has already been put back lands wherever the player was aiming. 8ms both
+            // sides keeps the whole excursion under ~20ms, about one frame at 60fps.
+            Thread.Sleep(8);
 
             var down = rightClick ? NativeMethods.MOUSEEVENTF_RIGHTDOWN : NativeMethods.MOUSEEVENTF_LEFTDOWN;
             var up = rightClick ? NativeMethods.MOUSEEVENTF_RIGHTUP : NativeMethods.MOUSEEVENTF_LEFTUP;
             SendMouse(down);
-            Thread.Sleep(12);
             SendMouse(up);
-            Thread.Sleep(12);
+            Thread.Sleep(8);
         }
         finally
         {

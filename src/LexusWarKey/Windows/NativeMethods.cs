@@ -112,6 +112,7 @@ internal static class NativeMethods
 
     // ---- virtual screen (the bounding box of every monitor, in physical pixels) ----
 
+    internal const int SM_CXSCREEN = 0, SM_CYSCREEN = 1;
     internal const int SM_XVIRTUALSCREEN = 76, SM_YVIRTUALSCREEN = 77;
     internal const int SM_CXVIRTUALSCREEN = 78, SM_CYVIRTUALSCREEN = 79;
 

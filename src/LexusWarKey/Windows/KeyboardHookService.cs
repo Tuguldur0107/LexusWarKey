@@ -38,9 +38,6 @@ public sealed class KeyboardHookService : IDisposable
     /// measure of whether the player is actually typing.</summary>
     public TimeSpan SinceLastKey => TimeSpan.FromMilliseconds(Environment.TickCount64 - _lastCallbackTicks);
 
-    /// <summary>Raised when the master on/off shortcut (Ctrl+F5) is pressed.</summary>
-    public event Action? ToggleRequested;
-
     /// <summary>Raised on Ctrl+F6 — opens/closes the in-game overlay.</summary>
     public event Action? OverlayToggleRequested;
 
@@ -114,23 +111,21 @@ public sealed class KeyboardHookService : IDisposable
             var ctrl = InputSender.IsKeyHeld(VirtualKeys.Control);
             var alt = InputSender.IsKeyHeld(VirtualKeys.Alt);
 
-            // Master toggle, handled before anything else so it works even when remapping is off.
-            // Auto-repeat must not count: holding Ctrl+F5 for half a second would otherwise
-            // toggle the app fifteen times and land on whichever state the release happened to hit.
-            if (ctrl && vk is VirtualKeys.F5 or VirtualKeys.F6)
+            // There is deliberately NO master-toggle hotkey any more. Ctrl+F5 collided with
+            // real play (F5 carries the user's own macros), it got pressed by accident, and a
+            // latch bug made toggling back on unreliable — so the one way to disable the app
+            // is the checkbox in the window, where the state is visible.
+            //
+            // Ctrl+F6 (overlay) stays, auto-repeat-guarded. The key-up cleanup below is
+            // unconditional because Ctrl is often released before F6 — the old code only
+            // cleared the latch while Ctrl was still down, leaving F6 permanently "held".
+            if (isUp)
+                _shortcutHeld.Remove(vk);
+
+            if (ctrl && vk == VirtualKeys.F6)
             {
-                if (isDown && !_shortcutHeld.Contains(vk))
-                {
-                    _shortcutHeld.Add(vk);
-                    if (vk == VirtualKeys.F5)
-                        ToggleRequested?.Invoke();
-                    else
-                        OverlayToggleRequested?.Invoke();
-                }
-                else if (isUp)
-                {
-                    _shortcutHeld.Remove(vk);
-                }
+                if (isDown && _shortcutHeld.Add(vk))
+                    OverlayToggleRequested?.Invoke();
                 return 1;
             }
 

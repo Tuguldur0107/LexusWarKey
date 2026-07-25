@@ -112,6 +112,32 @@ public class MigrationTests
         Assert.Equal(new[] { "-hhn" }, profile.ChatMacros[0].Messages);
     }
 
+    [Theory]
+    [InlineData(2560, 1600)] // the machine the fractions were measured on
+    [InlineData(1920, 1080)]
+    [InlineData(2560, 1440)]
+    [InlineData(1280, 1024)] // 5:4 — worst stretch 1.26a is played at
+    public void The_default_card_is_valid_at_common_resolutions(int width, int height)
+    {
+        var card = CommandCard.DefaultFor(width, height);
+
+        Assert.True(card.IsCalibrated);
+        Assert.Null(CommandCard.Validate(card.TopLeftX, card.TopLeftY, card.BottomRightX, card.BottomRightY));
+    }
+
+    [Fact]
+    public void The_default_card_reproduces_the_hand_verified_positions_it_was_measured_from()
+    {
+        // The user dragged all 12 rings onto their real buttons (2560x1600 fullscreen) and
+        // saved; these fractions came from those points. Allow a couple of pixels of rounding.
+        var card = CommandCard.DefaultFor(2560, 1600);
+
+        Assert.InRange(card.TopLeftX, 2036, 2040);       // measured 2038
+        Assert.InRange(card.TopLeftY, 1298, 1302);       // measured 1300
+        Assert.InRange(card.BottomRightX, 2453, 2457);   // measured 2455
+        Assert.InRange(card.BottomRightY, 1531, 1535);   // measured 1533
+    }
+
     [Fact]
     public void A_new_profile_is_born_with_12_slots_and_needs_no_migration()
     {

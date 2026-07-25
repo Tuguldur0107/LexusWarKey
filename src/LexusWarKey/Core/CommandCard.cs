@@ -96,6 +96,19 @@ public sealed class CommandCard
         Overrides = null;
     }
 
+    /// <summary>Where the card sits on a standard fullscreen setup, as fractions of the
+    /// physical screen. The fractions come from a real hand-verified layout (rings dragged
+    /// onto the buttons and saved), and agree with the relative coordinates AucT's tool has
+    /// shipped for two decades — so a fresh install starts with clicks already landing on
+    /// the card, and the rings exist for whatever small correction remains.</summary>
+    public static CommandCard DefaultFor(int screenWidth, int screenHeight) => new()
+    {
+        TopLeftX = (int)Math.Round(screenWidth * 0.7961),
+        TopLeftY = (int)Math.Round(screenHeight * 0.8125),
+        BottomRightX = (int)Math.Round(screenWidth * 0.9590),
+        BottomRightY = (int)Math.Round(screenHeight * 0.9581),
+    };
+
     /// <summary>Replaces every slot position with an explicit point. Used when the user has
     /// dragged the rings into place — from then on the grid is exactly what they see.</summary>
     public void SetOverrides(IReadOnlyList<ScreenPoint> points)

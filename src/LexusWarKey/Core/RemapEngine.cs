@@ -125,7 +125,7 @@ public sealed class RemapEngine
             return RemapDecision.PassThrough;
 
         // Chat macros fire once, on key-down only, and never with a modifier held
-        // (Ctrl+F5 etc. must stay available for the app's own shortcuts).
+        // (Ctrl+F6 must stay available for the app's own overlay shortcut).
         if (isKeyDown && !ctrlHeld && !altHeld)
         {
             var macro = profile.ChatMacros.FirstOrDefault(m => m.IsUsable && m.HotkeyVk == vk);
@@ -170,7 +170,7 @@ public sealed class RemapEngine
         var problems = new List<string>();
 
         if (!profile.Enabled)
-            problems.Add("Апп унтраалттай байна — ямар ч товч ажиллахгүй (Ctrl + F5 эсвэл дээрх 'Идэвхтэй').");
+            problems.Add("Апп унтраалттай байна — ямар ч товч ажиллахгүй. Дээрх 'Идэвхтэй'-г тэмдэглэ.");
 
         var boundSkills = profile.Skills.Count(m => m.ClaimsKey);
         if (boundSkills > 0)

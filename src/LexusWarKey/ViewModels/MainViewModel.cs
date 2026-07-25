@@ -178,11 +178,21 @@ public sealed partial class MainViewModel : ObservableObject
     {
         _store = new ProfileStore();
         _profile = _store.Load();
+
+        // A fresh install starts with the card where a fullscreen game actually puts it, so
+        // skills work out of the box; Холбох and the draggable rings remain for fine-tuning.
+        // Never touches a card the user has already linked or adjusted.
+        if (!_profile.CommandCard.IsCalibrated)
+        {
+            _profile.CommandCard = CommandCard.DefaultFor(
+                NativeMethods.GetSystemMetrics(NativeMethods.SM_CXSCREEN),
+                NativeMethods.GetSystemMetrics(NativeMethods.SM_CYSCREEN));
+        }
+
         _watcher = new GameWindowWatcher();
 
         _engine = new RemapEngine(() => _profile, _watcher.IsGameFocused);
         _hook = new KeyboardHookService(_engine);
-        _hook.ToggleRequested += () => Application.Current?.Dispatcher.BeginInvoke(() => IsEnabled = !IsEnabled);
         _hook.OverlayToggleRequested += () => Application.Current?.Dispatcher.BeginInvoke(ToggleOverlay);
         _hook.ConfigKeyPressed += vk => Application.Current?.Dispatcher.BeginInvoke(() => OnOverlayKey(vk));
         _overlaySession = new OverlayConfigSession(_profile, () => { Save(); RefreshRowsFromProfile(); });
@@ -480,8 +490,7 @@ public sealed partial class MainViewModel : ObservableObject
         RefreshCalibration();
     }
 
-    // Ctrl+F5 off and on again also clears the chat tracker, so it is the one recovery the user
-    // can reach from inside the game if it ever gets out of step with what Warcraft is showing.
+    // Toggling also clears the chat tracker, in case it ever got out of step with the game.
     partial void OnIsEnabledChanged(bool value)
     {
         _profile.Enabled = value;
@@ -776,7 +785,7 @@ public sealed partial class MainViewModel : ObservableObject
         if (!IsEnabled)
         {
             StatusText = "Унтраалттай";
-            StatusDetail = "Ctrl + F5 дарж асаана";
+            StatusDetail = "Дээрх 'Идэвхтэй'-г тэмдэглэж асаана";
         }
         else if (focused && _engine.ChatOpen)
         {
