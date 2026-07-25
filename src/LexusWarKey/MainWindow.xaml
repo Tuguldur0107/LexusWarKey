@@ -132,6 +132,35 @@
             </Border>
 
             <StackPanel Grid.Row="1">
+                <!-- activation banner: the app is for the Lexus Discord community -->
+                <Border CornerRadius="8" Background="#2A2416" BorderBrush="{StaticResource B.Warn}"
+                        BorderThickness="1" Padding="14,11" Margin="0,10,0,0">
+                    <Border.Style>
+                        <Style TargetType="Border">
+                            <Setter Property="Visibility" Value="Visible" />
+                            <Style.Triggers>
+                                <DataTrigger Binding="{Binding IsActivated}" Value="True">
+                                    <Setter Property="Visibility" Value="Collapsed" />
+                                </DataTrigger>
+                            </Style.Triggers>
+                        </Style>
+                    </Border.Style>
+                    <StackPanel>
+                        <TextBlock Foreground="{StaticResource B.Warn}" FontWeight="Bold" FontSize="13"
+                                   Text="Идэвхжүүлэлт шаардлагатай" />
+                        <TextBlock Foreground="{StaticResource B.Text}" FontSize="12" Margin="0,4,0,8" TextWrapping="Wrap"
+                                   Text="Энэ апп Lexus Discord серверийн гишүүдэд зориулагдсан. Сервер дээрээ /warkey гэж бичихэд бот танд код өгнө (tier-тэй байх шаардлагатай). Кодоо доор буулгаад Идэвхжүүлэх дар." />
+                        <StackPanel Orientation="Horizontal">
+                            <TextBox Width="420" Text="{Binding ActivationInput, UpdateSourceTrigger=PropertyChanged}"
+                                     VerticalContentAlignment="Center" MaxLines="1" />
+                            <Button Style="{StaticResource Btn.Accent}" Content="Идэвхжүүлэх" Margin="8,0,0,0"
+                                    Command="{Binding ActivateCommand}" />
+                        </StackPanel>
+                        <TextBlock Foreground="{StaticResource B.Red}" FontSize="12" Margin="0,6,0,0" TextWrapping="Wrap"
+                                   Text="{Binding ActivationStatus}" />
+                    </StackPanel>
+                </Border>
+
                 <!-- update banner -->
                 <Border CornerRadius="8" Background="#243328" Padding="14,11" Margin="0,10,0,0"
                         Visibility="{Binding UpdateAvailable, Converter={StaticResource BoolToVis}}">

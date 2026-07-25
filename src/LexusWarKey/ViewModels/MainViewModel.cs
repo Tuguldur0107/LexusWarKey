@@ -174,6 +174,39 @@ public sealed partial class MainViewModel : ObservableObject
     [ObservableProperty] private bool _isCalibrated;
     [ObservableProperty] private bool _isCalibrating;
 
+    // ---- community activation (TierBot /warkey) ----
+
+    [ObservableProperty] private bool _isActivated;
+    [ObservableProperty] private string _activationInput = "";
+    [ObservableProperty] private string _activationStatus = "";
+    private DateTimeOffset? _activationExpiry;
+
+    [RelayCommand]
+    private void Activate()
+    {
+        var result = Core.Activation.Validate(ActivationInput, DateTimeOffset.UtcNow);
+        if (!result.Valid)
+        {
+            ActivationStatus = "✗ " + result.Error;
+            return;
+        }
+
+        _profile.ActivationToken = ActivationInput.Trim();
+        _activationExpiry = result.ExpiresUtc;
+        IsActivated = true;
+        ActivationInput = "";
+        ActivationStatus = "";
+        Save();
+        RefreshStatus();
+        RefreshConflicts();
+    }
+
+    /// <summary>Days of activation left, or null when not activated. Used for the reminder.</summary>
+    private int? ActivationDaysLeft =>
+        IsActivated && _activationExpiry is { } expiry
+            ? Math.Max(0, (int)Math.Ceiling((expiry - DateTimeOffset.UtcNow).TotalDays))
+            : null;
+
     public MainViewModel()
     {
         _store = new ProfileStore();
@@ -191,7 +224,11 @@ public sealed partial class MainViewModel : ObservableObject
 
         _watcher = new GameWindowWatcher();
 
-        _engine = new RemapEngine(() => _profile, _watcher.IsGameFocused);
+        var saved = Core.Activation.Validate(_profile.ActivationToken, DateTimeOffset.UtcNow);
+        _isActivated = saved.Valid;
+        _activationExpiry = saved.ExpiresUtc;
+
+        _engine = new RemapEngine(() => _profile, _watcher.IsGameFocused, () => IsActivated);
         _hook = new KeyboardHookService(_engine);
         _hook.OverlayToggleRequested += () => Application.Current?.Dispatcher.BeginInvoke(ToggleOverlay);
         _hook.ConfigKeyPressed += vk => Application.Current?.Dispatcher.BeginInvoke(() => OnOverlayKey(vk));
@@ -732,6 +769,11 @@ public sealed partial class MainViewModel : ObservableObject
 
         var problems = new List<string>();
 
+        if (!IsActivated)
+            problems.Add("Идэвхжүүлээгүй — Lexus Discord сервер дээр /warkey гэж бичээд ирсэн кодоо дээрх талбарт буулгана уу. Товч солилт идэвхжтэл ажиллахгүй.");
+        else if (ActivationDaysLeft is <= 5 and { } daysLeft)
+            problems.Add($"Идэвхжүүлэлт {daysLeft} хоногийн дараа дуусна — Discord дээр /warkey гэж бичээд шинэ код аваарай.");
+
         // Anything wrong with the profile file itself belongs at the top: it explains why the
         // bindings below may not be the ones the user set, and it must never scroll past unseen.
         if (_store.LoadWarning is { } warning)
@@ -753,6 +795,13 @@ public sealed partial class MainViewModel : ObservableObject
         // Second line of defence for the chat tracker: if the game is not in front there is
         // no chat line, so anything the tracker believes is stale. Without this a mistracked
         // Enter would leave the app permanently, and invisibly, doing nothing.
+        if (IsActivated && _activationExpiry is { } activeUntil && activeUntil <= DateTimeOffset.UtcNow)
+        {
+            // The code ran out while the app was open — same treatment as never activated.
+            IsActivated = false;
+            RefreshConflicts();
+        }
+
         if (!focused)
             _engine.ResetChatState();
 

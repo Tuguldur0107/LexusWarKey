@@ -35,11 +35,13 @@ public sealed class RemapEngine
 {
     private readonly Func<WarKeyProfile> _profile;
     private readonly Func<bool> _gameFocused;
+    private readonly Func<bool>? _activated;
 
-    public RemapEngine(Func<WarKeyProfile> profile, Func<bool> gameFocused)
+    public RemapEngine(Func<WarKeyProfile> profile, Func<bool> gameFocused, Func<bool>? activated = null)
     {
         _profile = profile;
         _gameFocused = gameFocused;
+        _activated = activated;
     }
 
     /// <summary>Set while the app itself is typing a macro, so its own keystrokes are not remapped.</summary>
@@ -108,6 +110,11 @@ public sealed class RemapEngine
 
     public RemapDecision Decide(int vk, bool isKeyDown, bool ctrlHeld, bool altHeld)
     {
+        // Community gate: without a valid TierBot code every key passes through untouched.
+        // The UI explains loudly; this just makes sure nothing works quietly around it.
+        if (_activated is not null && !_activated())
+            return RemapDecision.PassThrough;
+
         var profile = _profile();
         if (!profile.Enabled || SuspendedForTyping)
             return RemapDecision.PassThrough;

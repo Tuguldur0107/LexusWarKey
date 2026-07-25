@@ -67,6 +67,10 @@ public sealed class WarKeyProfile
     public double? OverlayCellWidth { get; set; }
     public double? OverlayCellHeight { get; set; }
 
+    /// <summary>The activation code from TierBot's /warkey command, kept so it survives
+    /// restarts. Validated on every launch — expiry is what ends access for ex-members.</summary>
+    public string? ActivationToken { get; set; }
+
     /// <summary>Null until the app has asked once whether it should start with Windows.</summary>
     public bool? StartWithWindows { get; set; }
 
