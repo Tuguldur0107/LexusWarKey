@@ -66,7 +66,9 @@ public sealed partial class KeyMapRow : ObservableObject
         if (isFrom)
         {
             _model.FromVk = vk;
-            if (vk != 0) { _model.Enabled = true; Enabled = true; }
+            // A slot with a key is live; clearing the key switches it off.
+            _model.Enabled = vk != 0;
+            Enabled = _model.Enabled;
             OnPropertyChanged(nameof(FromDisplay));
         }
         else
@@ -364,7 +366,8 @@ public sealed partial class MainViewModel : ObservableObject
             _capture.Cancel();
             return true;
         }
-        _capture.Assign(vk);
+        // Backspace empties the slot rather than binding Backspace itself.
+        _capture.Assign(vk == VirtualKeys.Back ? 0 : vk);
         return true;
     }
 

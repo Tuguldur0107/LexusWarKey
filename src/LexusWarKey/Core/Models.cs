@@ -51,10 +51,10 @@ public sealed class WarKeyProfile
     public bool OnlyWhenGameFocused { get; set; } = true;
     public bool Enabled { get; set; } = true;
 
-    /// <summary>Warcraft's inventory is a 2x3 grid and its command card is 4x3, so the UI
-    /// mirrors those shapes exactly instead of showing a flat list.</summary>
+    /// <summary>Warcraft's inventory is a 2x3 grid and the ability area of its command card is
+    /// 4x2, so the UI mirrors those shapes exactly instead of showing a flat list.</summary>
     public const int InventorySlots = 6;
-    public const int SkillSlots = 12;
+    public const int SkillSlots = CommandCard.Slots;
 
     public static WarKeyProfile CreateDefault()
     {

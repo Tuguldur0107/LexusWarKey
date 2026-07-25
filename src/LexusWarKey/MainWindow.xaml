@@ -126,52 +126,60 @@
 
             <TabControl Grid.Row="2" Margin="0,14,0,0">
 
-                <!-- ===== Inventory: Warcraft's own 2x3 grid ===== -->
-                <TabItem Header="Эд зүйл">
+                <!-- ===== Keys: inventory and skills side by side, like the game ===== -->
+                <TabItem Header="Товч">
                     <ScrollViewer VerticalScrollBarVisibility="Auto" Padding="0,0,6,0">
                         <StackPanel>
-                            <TextBlock Style="{StaticResource Dim}" Margin="2,0,0,12"
-                                       Text="Байрлал нь тоглоомын цүнхтэй яг адил (2×3). Дээд том товч = таны дарах товч. Доод жижиг нь Warcraft-ын өөрийнх нь товч." />
-                            <ItemsControl ItemsSource="{Binding InventoryRows}" HorizontalAlignment="Left" Width="360">
-                                <ItemsControl.ItemsPanel>
-                                    <ItemsPanelTemplate>
-                                        <UniformGrid Columns="2" />
-                                    </ItemsPanelTemplate>
-                                </ItemsControl.ItemsPanel>
-                                <ItemsControl.ItemTemplate>
-                                    <DataTemplate>
-                                        <Border Style="{StaticResource GridCell}">
-                                            <StackPanel>
-                                                <Grid>
-                                                    <TextBlock Text="{Binding Label}" Foreground="#6E6A63" FontSize="11"
-                                                               HorizontalAlignment="Left" />
-                                                    <CheckBox IsChecked="{Binding Enabled}" HorizontalAlignment="Right" />
-                                                </Grid>
-                                                <Button Style="{StaticResource CellChip}" Content="{Binding FromDisplay}"
-                                                        Command="{Binding CaptureFromCommand}" Margin="0,6,0,0" />
-                                                <Button Style="{StaticResource CellChip.Target}" Content="{Binding ToDisplay}"
-                                                        Command="{Binding CaptureToCommand}" Margin="0,3,0,0"
-                                                        ToolTip="Warcraft-ын товч — ихэвчлэн хөндөхгүй" />
-                                            </StackPanel>
-                                        </Border>
-                                    </DataTemplate>
-                                </ItemsControl.ItemTemplate>
-                            </ItemsControl>
-                        </StackPanel>
-                    </ScrollViewer>
-                </TabItem>
+                            <StackPanel Orientation="Horizontal">
 
-                <!-- ===== Skills: the 4x3 command card ===== -->
-                <TabItem Header="Чадвар">
-                    <ScrollViewer VerticalScrollBarVisibility="Auto" Padding="0,0,6,0">
-                        <StackPanel>
+                                <!-- Inventory 2x3 -->
+                                <Border Style="{StaticResource Card}" Padding="16,14" VerticalAlignment="Top">
+                                    <StackPanel>
+                                        <TextBlock Style="{StaticResource PanelTitle}" Text="Inventory" />
+                                        <ItemsControl ItemsSource="{Binding InventoryRows}" Width="180">
+                                            <ItemsControl.ItemsPanel>
+                                                <ItemsPanelTemplate><UniformGrid Columns="2" /></ItemsPanelTemplate>
+                                            </ItemsControl.ItemsPanel>
+                                            <ItemsControl.ItemTemplate>
+                                                <DataTemplate>
+                                                    <Button Style="{StaticResource SlotButton}" Content="{Binding FromDisplay}"
+                                                            Command="{Binding CaptureFromCommand}"
+                                                            ToolTip="Дараад шинэ товчоо дар · Backspace = цэвэрлэх" />
+                                                </DataTemplate>
+                                            </ItemsControl.ItemTemplate>
+                                        </ItemsControl>
+                                    </StackPanel>
+                                </Border>
+
+                                <!-- Skills 4x2 -->
+                                <Border Style="{StaticResource Card}" Padding="16,14" Margin="14,0,0,0" VerticalAlignment="Top">
+                                    <StackPanel>
+                                        <TextBlock Style="{StaticResource PanelTitle}" Text="Skills" />
+                                        <ItemsControl ItemsSource="{Binding SkillRows}" Width="360">
+                                            <ItemsControl.ItemsPanel>
+                                                <ItemsPanelTemplate><UniformGrid Columns="4" /></ItemsPanelTemplate>
+                                            </ItemsControl.ItemsPanel>
+                                            <ItemsControl.ItemTemplate>
+                                                <DataTemplate>
+                                                    <Button Style="{StaticResource SlotButton}" Content="{Binding FromDisplay}"
+                                                            Command="{Binding CaptureFromCommand}"
+                                                            ToolTip="Дараад шинэ товчоо дар · Backspace = цэвэрлэх" />
+                                                </DataTemplate>
+                                            </ItemsControl.ItemTemplate>
+                                        </ItemsControl>
+                                        <TextBlock Style="{StaticResource Dim}" Margin="0,8,0,0" HorizontalAlignment="Center"
+                                                   Text="Auto-Cast: Alt + товч   ·   Чадвар сурах: Ctrl + товч" />
+                                    </StackPanel>
+                                </Border>
+                            </StackPanel>
+
                             <!-- position mode + calibration -->
-                            <Border Style="{StaticResource Card}" Padding="14,12" Margin="0,0,0,12">
+                            <Border Style="{StaticResource Card}" Padding="16,13" Margin="0,14,0,0">
                                 <StackPanel>
                                     <CheckBox IsChecked="{Binding SkillsUsePosition}" FontWeight="SemiBold"
-                                              Content="Байрлалаар дарах (LoD / random чадварт зориулсан)" />
+                                              Content="Чадварыг БАЙРЛАЛААР дарах (LoD / random чадвар)" />
                                     <TextBlock Style="{StaticResource Dim}" Margin="27,6,0,0"
-                                               Text="Асаалттай үед: таны товч дарахад тухайн БАЙРЛАЛД байгаа чадвар дарагдана — үсэг нь юу ч байсан хамаагүй. LoD шиг санамсаргүй чадвартай горимд яг үүнийг л хэрэгтэй." />
+                                               Text="Асаалттай үед таны товч дарахад тэр байрлалд байгаа чадвар дарагдана — үсэг нь юу ч байсан хамаагүй. Товшилтыг тоглоомын цонх руу шууд илгээдэг тул курсор чинь огт хөдлөхгүй." />
                                     <TextBlock Style="{StaticResource Dim}" Margin="27,6,0,0" Foreground="{StaticResource B.Warn}"
                                                Text="{Binding CalibrationText}" />
                                     <StackPanel Orientation="Horizontal" Margin="27,10,0,0">
@@ -180,41 +188,10 @@
                                         <Button Content="Цэвэрлэх" Command="{Binding ClearCalibrationCommand}" Margin="8,0,0,0"
                                                 Visibility="{Binding IsCalibrated, Converter={StaticResource BoolToVis}}" />
                                     </StackPanel>
-
                                     <CheckBox IsChecked="{Binding MoveCursorForClicks}" Margin="27,12,0,0"
                                               Content="Курсор хөдөлгөж дарах (зөвхөн дээрх арга ажиллахгүй бол)" />
-                                    <TextBlock Style="{StaticResource Dim}" Margin="27,5,0,0"
-                                               Text="Анхдагчаар товшилтыг тоглоомын цонх руу шууд илгээдэг тул ТАНЫ КУРСОР ОГТ ХӨДӨЛДӨГГҮЙ. Энэ сонголтыг зөвхөн чадвар ажиллахгүй байвал асаа — тэр үед курсор хормын зуур очоод буцна." />
                                 </StackPanel>
                             </Border>
-
-                            <TextBlock Style="{StaticResource Dim}" Margin="2,0,0,12"
-                                       Text="Байрлал нь тоглоомын командын карттай адил (4×3). Дээд том товч = таны дарах товч. Alt+товч = auto-cast (баруун товшилт), Ctrl+товч = чадвар сурах." />
-                            <ItemsControl ItemsSource="{Binding SkillRows}" HorizontalAlignment="Left" Width="600">
-                                <ItemsControl.ItemsPanel>
-                                    <ItemsPanelTemplate>
-                                        <UniformGrid Columns="4" />
-                                    </ItemsPanelTemplate>
-                                </ItemsControl.ItemsPanel>
-                                <ItemsControl.ItemTemplate>
-                                    <DataTemplate>
-                                        <Border Style="{StaticResource GridCell}">
-                                            <StackPanel>
-                                                <Grid>
-                                                    <TextBlock Text="{Binding Label}" Foreground="#6E6A63" FontSize="11"
-                                                               HorizontalAlignment="Left" />
-                                                    <CheckBox IsChecked="{Binding Enabled}" HorizontalAlignment="Right" />
-                                                </Grid>
-                                                <Button Style="{StaticResource CellChip}" Content="{Binding FromDisplay}"
-                                                        Command="{Binding CaptureFromCommand}" Margin="0,6,0,0" />
-                                                <Button Style="{StaticResource CellChip.Target}" Content="{Binding ToDisplay}"
-                                                        Command="{Binding CaptureToCommand}" Margin="0,3,0,0"
-                                                        ToolTip="Тоглоом дээрх чадварын үсэг" />
-                                            </StackPanel>
-                                        </Border>
-                                    </DataTemplate>
-                                </ItemsControl.ItemTemplate>
-                            </ItemsControl>
                         </StackPanel>
                     </ScrollViewer>
                 </TabItem>
