@@ -7,7 +7,12 @@ using LexusWarKey.Windows;
 
 namespace LexusWarKey.Views;
 
-public sealed record OverlaySlot(SlotGroup Group, int Index, string KeyName, string Background, string Border);
+public sealed record OverlaySlot(SlotGroup Group, int Index, string KeyName, string Background, string Border)
+{
+    /// <summary>1-based slot number shown in the cell's corner — the same number the adjust
+    /// window draws inside its ring, so "цагираг 7" is findable at a glance.</summary>
+    public string Number => (Index + 1).ToString();
+}
 
 public partial class OverlayWindow : Window
 {

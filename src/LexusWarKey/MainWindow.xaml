@@ -195,6 +195,7 @@
                                             <ItemsControl.ItemTemplate>
                                                 <DataTemplate>
                                                     <Button Style="{StaticResource SlotButton}" Content="{Binding FromDisplay}"
+                                                            Tag="{Binding Label}"
                                                             Command="{Binding CaptureFromCommand}"
                                                             ToolTip="Дараад шинэ товчоо дар · Backspace = цэвэрлэх" />
                                                 </DataTemplate>
@@ -214,6 +215,7 @@
                                             <ItemsControl.ItemTemplate>
                                                 <DataTemplate>
                                                     <Button Style="{StaticResource SlotButton}" Content="{Binding FromDisplay}"
+                                                            Tag="{Binding Label}"
                                                             Command="{Binding CaptureFromCommand}"
                                                             ToolTip="Дараад шинэ товчоо дар · Backspace = цэвэрлэх" />
                                                 </DataTemplate>

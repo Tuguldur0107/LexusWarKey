@@ -41,8 +41,12 @@
                                 <Border Margin="2" CornerRadius="6" Cursor="Hand"
                                         Background="{Binding Background}" BorderBrush="{Binding Border}" BorderThickness="1.5"
                                         Tag="{Binding}" MouseLeftButtonDown="Slot_Click">
-                                    <TextBlock Text="{Binding KeyName}" Foreground="#FFFFFF" FontSize="13"
-                                               FontWeight="SemiBold" HorizontalAlignment="Center" VerticalAlignment="Center" />
+                                    <Grid>
+                                        <TextBlock Text="{Binding Number}" Foreground="#59FFFFFF" FontSize="9"
+                                                   HorizontalAlignment="Left" VerticalAlignment="Top" Margin="4,2,0,0" />
+                                        <TextBlock Text="{Binding KeyName}" Foreground="#FFFFFF" FontSize="13"
+                                                   FontWeight="SemiBold" HorizontalAlignment="Center" VerticalAlignment="Center" />
+                                    </Grid>
                                 </Border>
                             </DataTemplate>
                         </ItemsControl.ItemTemplate>
@@ -61,8 +65,12 @@
                                 <Border Margin="2" CornerRadius="6" Cursor="Hand"
                                         Background="{Binding Background}" BorderBrush="{Binding Border}" BorderThickness="1.5"
                                         Tag="{Binding}" MouseLeftButtonDown="Slot_Click">
-                                    <TextBlock Text="{Binding KeyName}" Foreground="#FFFFFF" FontSize="13"
-                                               FontWeight="SemiBold" HorizontalAlignment="Center" VerticalAlignment="Center" />
+                                    <Grid>
+                                        <TextBlock Text="{Binding Number}" Foreground="#59FFFFFF" FontSize="9"
+                                                   HorizontalAlignment="Left" VerticalAlignment="Top" Margin="4,2,0,0" />
+                                        <TextBlock Text="{Binding KeyName}" Foreground="#FFFFFF" FontSize="13"
+                                                   FontWeight="SemiBold" HorizontalAlignment="Center" VerticalAlignment="Center" />
+                                    </Grid>
                                 </Border>
                             </DataTemplate>
                         </ItemsControl.ItemTemplate>
