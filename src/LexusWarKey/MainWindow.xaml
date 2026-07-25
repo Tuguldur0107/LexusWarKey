@@ -23,6 +23,7 @@
                 <Grid.ColumnDefinitions>
                     <ColumnDefinition Width="*" />
                     <ColumnDefinition Width="Auto" />
+                    <ColumnDefinition Width="Auto" />
                 </Grid.ColumnDefinitions>
 
                 <StackPanel Grid.Column="0" Orientation="Horizontal" VerticalAlignment="Center">
@@ -45,8 +46,35 @@
                     </StackPanel>
                 </StackPanel>
 
+                <!-- manual update check: always one click away, not buried in a tab -->
+                <Button Grid.Column="1" VerticalAlignment="Center"
+                        Margin="0,0,14,0" Command="{Binding CheckUpdateNowCommand}"
+                        ToolTip="GitHub-аас шинэ хувилбар байгаа эсэхийг шалгана">
+                    <Button.Style>
+                        <Style TargetType="Button" BasedOn="{StaticResource Btn.Ghost}">
+                            <Style.Triggers>
+                                <DataTrigger Binding="{Binding IsCheckingUpdate}" Value="True">
+                                    <Setter Property="IsEnabled" Value="False" />
+                                </DataTrigger>
+                            </Style.Triggers>
+                        </Style>
+                    </Button.Style>
+                    <TextBlock>
+                        <TextBlock.Style>
+                            <Style TargetType="TextBlock">
+                                <Setter Property="Text" Value="⟳ Шинэчлэлт шалгах" />
+                                <Style.Triggers>
+                                    <DataTrigger Binding="{Binding IsCheckingUpdate}" Value="True">
+                                        <Setter Property="Text" Value="Шалгаж байна…" />
+                                    </DataTrigger>
+                                </Style.Triggers>
+                            </Style>
+                        </TextBlock.Style>
+                    </TextBlock>
+                </Button>
+
                 <!-- status pill -->
-                <Border Grid.Column="1" CornerRadius="20" Padding="14,8" VerticalAlignment="Center">
+                <Border Grid.Column="2" CornerRadius="20" Padding="14,8" VerticalAlignment="Center">
                     <Border.Style>
                         <Style TargetType="Border">
                             <Setter Property="Background" Value="#2A2724" />
