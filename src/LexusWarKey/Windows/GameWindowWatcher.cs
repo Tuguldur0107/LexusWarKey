@@ -46,6 +46,26 @@ public sealed class GameWindowWatcher
         return pid != 0 && ResolveIsGame(pid) ? hwnd : IntPtr.Zero;
     }
 
+    /// <summary>Is Warcraft running at all, focused or not? Calibration needs this: the two
+    /// corners have to be clicked on the real command card, and with the game closed the user
+    /// is just clicking on whatever window happens to be underneath.</summary>
+    public bool IsGameRunning()
+    {
+        foreach (var name in GameProcessNames)
+        {
+            try
+            {
+                if (Process.GetProcessesByName(name).Length > 0)
+                    return true;
+            }
+            catch
+            {
+                // a process vanishing mid-enumeration is normal; keep looking
+            }
+        }
+        return false;
+    }
+
     public string? ForegroundProcessName()
     {
         var hwnd = NativeMethods.GetForegroundWindow();

@@ -170,13 +170,27 @@ public sealed class RemapEngine
             }
             else if (!profile.CommandCard.IsCalibrated)
             {
-                problems.Add($"{boundSkills} чадварын товч оноосон ч командын карт тохируулаагүй тул АЖИЛЛАХГҮЙ байна.");
+                // Saying what is wrong without saying what to do is how this sat unresolved:
+                // calibration needs the game on screen, which is not obvious from the button.
+                problems.Add($"{boundSkills} чадварын товч ажиллахгүй байна — командын карт тохируулаагүй. " +
+                             "Warcraft III-аа нээгээд 'Командын карт тохируулах' дар (эсвэл тоглоом дотроос Ctrl + F6).");
             }
         }
 
         var inventoryWithoutTarget = profile.Inventory.Count(m => m.ClaimsKey && m.ToVk == 0);
         if (inventoryWithoutTarget > 0)
             problems.Add($"{inventoryWithoutTarget} эд зүйлийн товчид тоглоомын товч алга.");
+
+        // Several macros on one key looks like "this key sends all of these", but only the first
+        // is ever found. Naming the winner is the point: without it the rest fail invisibly, and
+        // the user has no way to tell which of their lines is the one getting through.
+        foreach (var group in profile.ChatMacros.Where(m => m.IsUsable).GroupBy(m => m.HotkeyVk).Where(g => g.Count() > 1))
+        {
+            var first = group.First().Messages.FirstOrDefault(m => !string.IsNullOrWhiteSpace(m)) ?? "";
+            problems.Add(
+                $"{VirtualKeys.NameOf(group.Key)} дээр {group.Count()} макро байна — зөвхөн эхнийх нь (\"{first}\") илгээгдэнэ. " +
+                "Бүгдийг нэг дор явуулах бол нэг макро дотор мөр бүрт нэг мессеж бичнэ үү.");
+        }
 
         return problems;
     }

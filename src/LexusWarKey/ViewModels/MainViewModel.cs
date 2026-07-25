@@ -135,6 +135,7 @@ public sealed partial class MainViewModel : ObservableObject
     private readonly KeyboardHookService _hook;
     private readonly WarKeyProfile _profile;
     private readonly System.Windows.Threading.DispatcherTimer _statusTimer;
+    private readonly System.Windows.Threading.DispatcherTimer _calibrationDone;
 
     [ObservableProperty] private bool _isEnabled;
     [ObservableProperty] private bool _onlyWhenGameFocused;
@@ -209,6 +210,16 @@ public sealed partial class MainViewModel : ObservableObject
         _statusTimer = new System.Windows.Threading.DispatcherTimer { Interval = TimeSpan.FromSeconds(1) };
         _statusTimer.Tick += (_, _) => RefreshStatus();
         _statusTimer.Start();
+
+        // Holds the "✓ Тохирлоо" confirmation on screen just long enough to be read, then clears
+        // it without the user having to dismiss anything.
+        _calibrationDone = new System.Windows.Threading.DispatcherTimer { Interval = TimeSpan.FromSeconds(2) };
+        _calibrationDone.Tick += (_, _) =>
+        {
+            _calibrationDone.Stop();
+            HideCalibrationOverlay();
+            RefreshCalibration();
+        };
         RefreshStatus();
         RefreshConflicts();
         RefreshCalibration();
@@ -248,10 +259,11 @@ public sealed partial class MainViewModel : ObservableObject
     private async Task CheckForUpdateAsync(bool announceWhenUpToDate = false)
     {
         IsCheckingUpdate = true;
+        var checker = new UpdateChecker();
         UpdateInfo? info;
         try
         {
-            info = await new UpdateChecker().CheckAsync().ConfigureAwait(true);
+            info = await checker.CheckAsync().ConfigureAwait(true);
         }
         finally
         {
@@ -260,9 +272,17 @@ public sealed partial class MainViewModel : ObservableObject
 
         if (info is null)
         {
-            if (announceWhenUpToDate)
-                MessageBox.Show($"Та хамгийн сүүлийн хувилбар дээр байна (v{UpdateChecker.CurrentVersion}).",
-                    "Lexus WarKey", MessageBoxButton.OK, MessageBoxImage.Information);
+            if (!announceWhenUpToDate)
+                return;
+
+            // "No update" and "could not ask" are the same null. Telling an offline user they are
+            // up to date is worse than saying nothing — they stop looking.
+            MessageBox.Show(
+                checker.LastCheckFailed
+                    ? "GitHub-тай холбогдож чадсангүй. Интернэтээ шалгаад дахин оролдоно уу."
+                    : $"Та хамгийн сүүлийн хувилбар дээр байна (v{UpdateChecker.CurrentVersion}).",
+                "Lexus WarKey", MessageBoxButton.OK,
+                checker.LastCheckFailed ? MessageBoxImage.Warning : MessageBoxImage.Information);
             return;
         }
 
@@ -359,8 +379,8 @@ public sealed partial class MainViewModel : ObservableObject
         CalibrationText = !SkillsUsePosition
             ? "Байрлалын горим унтраалттай — товч зүгээр л өөр товч руу шилждэг."
             : card.IsCalibrated
-                ? $"Тохируулсан: 1-р нүд ({card.TopLeftX}, {card.TopLeftY}) → 12-р нүд ({card.BottomRightX}, {card.BottomRightY})"
-                : "Тохируулаагүй — доорх товчийг дараад тоглоом дотроо 2 удаа дар.";
+                ? $"Тохируулсан: 1-р нүд ({card.TopLeftX}, {card.TopLeftY}) → 8-р нүд ({card.BottomRightX}, {card.BottomRightY})"
+                : "Тохируулаагүй — Warcraft III-аа нээсний дараа доорх товчийг дараад тоглоом дотроо 2 удаа дар.";
     }
 
     [RelayCommand]
@@ -368,11 +388,32 @@ public sealed partial class MainViewModel : ObservableObject
     {
         if (IsCalibrating)
             return;
+
+        // Without the game on screen there is no command card to click, so the two corners land
+        // on whatever window happens to be underneath — which is exactly how this used to fail.
+        // Refuse up front instead of collecting two meaningless clicks and complaining afterwards.
+        if (!_watcher.IsGameRunning())
+        {
+            CalibrationText = "Эхлээд Warcraft III-аа нээ. Тоглоом дэлгэц дээр гарсны дараа энэ товчийг дар " +
+                              "— эсвэл тоглоом дотроосоо Ctrl + F6 дараад тэндээс тохируул.";
+            return;
+        }
+
+        BeginCalibrationAttempt(attempt: 1, reason: null);
+    }
+
+    /// <summary>One pass of "click the top-left ability, then the bottom-right one".
+    ///
+    /// A misclick used to end the whole thing behind a modal dialog, leaving the user to find the
+    /// button again with the game in the way. Now the overlay simply says what went wrong and asks
+    /// again in place — it is already sitting on top of the game, which is where they are looking.</summary>
+    private void BeginCalibrationAttempt(int attempt, string? reason)
+    {
+        const int maxAttempts = 3;
         IsCalibrating = true;
 
-        // The instructions have to be visible ON TOP of the game — the main window is behind
-        // it, so a prompt shown only there cannot be read while clicking in the game.
-        ShowCalibrationOverlay("1/2 — Командын картны ЗҮҮН ДЭЭД чадварын нүдийг дар");
+        var lead = reason is null ? "" : reason + "\n";
+        ShowCalibrationOverlay($"{lead}1/2 — Командын картны ЗҮҮН ДЭЭД чадварын нүдийг дар");
 
         _mouse.CaptureNextClick((x1, y1) => Application.Current?.Dispatcher.BeginInvoke(() =>
         {
@@ -380,14 +421,18 @@ public sealed partial class MainViewModel : ObservableObject
 
             _mouse.CaptureNextClick((x2, y2) => Application.Current?.Dispatcher.BeginInvoke(() =>
             {
-                IsCalibrating = false;
                 var error = CommandCard.Validate(x1, y1, x2, y2);
                 if (error is not null)
                 {
+                    if (attempt < maxAttempts)
+                    {
+                        BeginCalibrationAttempt(attempt + 1, "⚠ " + error);
+                        return;
+                    }
+
+                    IsCalibrating = false;
                     HideCalibrationOverlay();
-                    CalibrationText = "Тохируулга амжилтгүй: " + error;
-                    MessageBox.Show(error + "\n\nДахин оролдоно уу.", "Lexus WarKey",
-                        MessageBoxButton.OK, MessageBoxImage.Warning);
+                    CalibrationText = error + " Тоглоомоо дэлгэц дээр гаргаад дахин оролдоно уу.";
                     return;
                 }
 
@@ -396,11 +441,16 @@ public sealed partial class MainViewModel : ObservableObject
                 card.TopLeftY = Math.Min(y1, y2);
                 card.BottomRightX = Math.Max(x1, x2);
                 card.BottomRightY = Math.Max(y1, y2);
-                HideCalibrationOverlay();
+
+                IsCalibrating = false;
                 Save();
                 RefreshCalibration();
-                MessageBox.Show("Командын карт тохируулагдлаа. Чадварын товчнууд одоо ажиллана.",
-                    "Lexus WarKey", MessageBoxButton.OK, MessageBoxImage.Information);
+                RefreshConflicts();
+
+                // Confirm where they are already looking, then get out of the way on its own.
+                ShowCalibrationOverlay("✓ Тохирлоо — чадварын товчнууд одоо ажиллана");
+                _calibrationDone.Stop();
+                _calibrationDone.Start();
             }));
         }));
     }
