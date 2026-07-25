@@ -92,6 +92,37 @@ public sealed class RemapEngine
         return map is null ? RemapDecision.PassThrough : new RemapDecision(RemapAction.SendKey, map.ToVk);
     }
 
+    /// <summary>Keys the user has bound that currently do nothing, with the reason.
+    /// Without this, a skill key bound before calibrating just silently fails.</summary>
+    public static IReadOnlyList<string> FindDeadBindings(WarKeyProfile profile)
+    {
+        var problems = new List<string>();
+
+        if (!profile.Enabled)
+            problems.Add("Апп унтраалттай байна — ямар ч товч ажиллахгүй (Ctrl + F5 эсвэл дээрх 'Идэвхтэй').");
+
+        var boundSkills = profile.Skills.Count(m => m.ClaimsKey);
+        if (boundSkills > 0)
+        {
+            if (!profile.SkillsUsePosition)
+            {
+                var withoutTarget = profile.Skills.Count(m => m.ClaimsKey && m.ToVk == 0);
+                if (withoutTarget > 0)
+                    problems.Add($"{withoutTarget} чадварын товчид зорилтот товч алга — 'Байрлалаар дарах'-ыг асаана уу.");
+            }
+            else if (!profile.CommandCard.IsCalibrated)
+            {
+                problems.Add($"{boundSkills} чадварын товч оноосон ч командын карт тохируулаагүй тул АЖИЛЛАХГҮЙ байна.");
+            }
+        }
+
+        var inventoryWithoutTarget = profile.Inventory.Count(m => m.ClaimsKey && m.ToVk == 0);
+        if (inventoryWithoutTarget > 0)
+            problems.Add($"{inventoryWithoutTarget} эд зүйлийн товчид тоглоомын товч алга.");
+
+        return problems;
+    }
+
     /// <summary>Duplicate source keys would make behaviour undefined; the UI shows these.
     /// Uses ClaimsKey rather than IsUsable so position-based skills — which have no target
     /// key — are still checked against everything else.</summary>

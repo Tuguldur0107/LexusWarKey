@@ -129,8 +129,20 @@
                     </Grid>
                 </Border>
 
+                <!-- why nothing is happening -->
+                <Border CornerRadius="8" Background="{StaticResource B.RedDim}" BorderBrush="{StaticResource B.Red}"
+                        BorderThickness="1" Padding="14,11" Margin="0,10,0,0"
+                        Visibility="{Binding HasProblems, Converter={StaticResource BoolToVis}}">
+                    <StackPanel>
+                        <TextBlock Text="Товч ажиллахгүй байгаа шалтгаан" Foreground="{StaticResource B.Red}"
+                                   FontWeight="Bold" FontSize="13" />
+                        <TextBlock Text="{Binding ProblemText}" Foreground="{StaticResource B.Text}" FontSize="12"
+                                   Margin="0,6,0,0" TextWrapping="Wrap" />
+                    </StackPanel>
+                </Border>
+
                 <!-- conflict warning -->
-                <Border CornerRadius="8" Background="#3A2F1E" Padding="12,9" Margin="0,10,0,0"
+                <Border CornerRadius="8" Background="#2A2416" Padding="12,9" Margin="0,10,0,0"
                         Visibility="{Binding HasConflicts, Converter={StaticResource BoolToVis}}">
                     <TextBlock Text="{Binding ConflictText}" Foreground="{StaticResource B.Warn}" FontSize="12" />
                 </Border>

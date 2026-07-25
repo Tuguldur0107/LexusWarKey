@@ -142,6 +142,8 @@ public sealed partial class MainViewModel : ObservableObject
     [ObservableProperty] private bool _statusIsLive;
     [ObservableProperty] private string _conflictText = "";
     [ObservableProperty] private bool _hasConflicts;
+    [ObservableProperty] private string _problemText = "";
+    [ObservableProperty] private bool _hasProblems;
     [ObservableProperty] private bool _isCapturing;
 
     private CaptureRequest? _capture;
@@ -333,23 +335,57 @@ public sealed partial class MainViewModel : ObservableObject
         if (IsCalibrating)
             return;
         IsCalibrating = true;
-        CalibrationText = "1/2 — Тоглоом руугаа орж, командын картны ЗҮҮН ДЭЭД чадварын товчийг дар.";
+
+        // The instructions have to be visible ON TOP of the game — the main window is behind
+        // it, so a prompt shown only there cannot be read while clicking in the game.
+        ShowCalibrationOverlay("1/2 — Командын картны ЗҮҮН ДЭЭД чадварын нүдийг дар");
 
         _mouse.CaptureNextClick((x1, y1) => Application.Current?.Dispatcher.BeginInvoke(() =>
         {
-            CalibrationText = "2/2 — Одоо БАРУУН ДООД (12-р) нүдийг дар.";
+            ShowCalibrationOverlay("2/2 — Одоо БАРУУН ДООД нүдийг дар (4 баганын хамгийн баруун, доод эгнээ)");
+
             _mouse.CaptureNextClick((x2, y2) => Application.Current?.Dispatcher.BeginInvoke(() =>
             {
+                IsCalibrating = false;
+                var error = CommandCard.Validate(x1, y1, x2, y2);
+                if (error is not null)
+                {
+                    HideCalibrationOverlay();
+                    CalibrationText = "Тохируулга амжилтгүй: " + error;
+                    MessageBox.Show(error + "\n\nДахин оролдоно уу.", "Lexus WarKey",
+                        MessageBoxButton.OK, MessageBoxImage.Warning);
+                    return;
+                }
+
                 var card = _profile.CommandCard;
                 card.TopLeftX = Math.Min(x1, x2);
                 card.TopLeftY = Math.Min(y1, y2);
                 card.BottomRightX = Math.Max(x1, x2);
                 card.BottomRightY = Math.Max(y1, y2);
-                IsCalibrating = false;
+                HideCalibrationOverlay();
                 Save();
                 RefreshCalibration();
+                MessageBox.Show("Командын карт тохируулагдлаа. Чадварын товчнууд одоо ажиллана.",
+                    "Lexus WarKey", MessageBoxButton.OK, MessageBoxImage.Information);
             }));
         }));
+    }
+
+    private void ShowCalibrationOverlay(string prompt)
+    {
+        CalibrationText = prompt;
+        EnsureOverlay();
+        _overlay!.ShowSlots(
+            BuildSlots(SlotGroup.Inventory, _profile.Inventory),
+            BuildSlots(SlotGroup.Skill, _profile.Skills),
+            prompt);
+        _overlay.PlaceAt(_profile.OverlayLeft, _profile.OverlayTop);
+    }
+
+    private void HideCalibrationOverlay()
+    {
+        if (!_hook.ConfigMode)
+            _overlay?.Hide();
     }
 
     [RelayCommand]
@@ -362,7 +398,7 @@ public sealed partial class MainViewModel : ObservableObject
         RefreshCalibration();
     }
 
-    partial void OnIsEnabledChanged(bool value) { _profile.Enabled = value; Save(); RefreshStatus(); }
+    partial void OnIsEnabledChanged(bool value) { _profile.Enabled = value; Save(); RefreshStatus(); RefreshConflicts(); }
     partial void OnOnlyWhenGameFocusedChanged(bool value) { _profile.OnlyWhenGameFocused = value; Save(); RefreshStatus(); }
 
     // ---- key capture ----
@@ -432,24 +468,28 @@ public sealed partial class MainViewModel : ObservableObject
         }
 
         _overlaySession.Reset();
-        if (_overlay is null)
-        {
-            _overlay = new OverlayWindow();
-            _overlay.SlotClicked += (group, index) =>
-            {
-                _overlaySession.SelectSlot(group, index);
-                RenderOverlay();
-            };
-            _overlay.Moved += (left, top) =>
-            {
-                _profile.OverlayLeft = left;
-                _profile.OverlayTop = top;
-                Save();
-            };
-        }
+        EnsureOverlay();
         _hook.ConfigMode = true;
         RenderOverlay();
-        _overlay.PlaceAt(_profile.OverlayLeft, _profile.OverlayTop);
+        _overlay!.PlaceAt(_profile.OverlayLeft, _profile.OverlayTop);
+    }
+
+    private void EnsureOverlay()
+    {
+        if (_overlay is not null)
+            return;
+        _overlay = new OverlayWindow();
+        _overlay.SlotClicked += (group, index) =>
+        {
+            _overlaySession.SelectSlot(group, index);
+            RenderOverlay();
+        };
+        _overlay.Moved += (left, top) =>
+        {
+            _profile.OverlayLeft = left;
+            _profile.OverlayTop = top;
+            Save();
+        };
     }
 
     private void CloseOverlay()
@@ -533,6 +573,10 @@ public sealed partial class MainViewModel : ObservableObject
         ConflictText = HasConflicts
             ? "Давхардсан товч: " + string.Join(", ", conflicts.Select(VirtualKeys.NameOf))
             : "";
+
+        var dead = RemapEngine.FindDeadBindings(_profile);
+        HasProblems = dead.Count > 0;
+        ProblemText = string.Join("\n", dead.Select(p => "• " + p));
     }
 
     private void RefreshStatus()

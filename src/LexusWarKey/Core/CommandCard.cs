@@ -25,7 +25,22 @@ public sealed class CommandCard
     public int BottomRightX { get; set; }
     public int BottomRightY { get; set; }
 
-    public bool IsCalibrated => BottomRightX > TopLeftX && BottomRightY > TopLeftY;
+    /// <summary>Slot centres must be far enough apart to describe a real grid — clicking the
+    /// same button twice used to leave a "calibrated" card that silently did nothing.</summary>
+    private const int MinimumSpan = 20;
+
+    public bool IsCalibrated =>
+        BottomRightX - TopLeftX >= MinimumSpan && BottomRightY - TopLeftY >= MinimumSpan;
+
+    /// <summary>Why a calibration attempt was rejected, or null when it is good.</summary>
+    public static string? Validate(int x1, int y1, int x2, int y2)
+    {
+        if (Math.Abs(x2 - x1) < MinimumSpan)
+            return "Хоёр товшилт хэвтээ чиглэлд хэт ойрхон байна — 1-р нүд, дараа нь 4 нүдээр баруун тийш байрлах 8-р нүдийг дарна уу.";
+        if (Math.Abs(y2 - y1) < MinimumSpan)
+            return "Хоёр товшилт босоо чиглэлд хэт ойрхон байна — 8-р нүд нь 1-р нүднээс НЭГ ЭГНЭЭ доор байна.";
+        return null;
+    }
 
     /// <summary>Screen position of a slot, 0-based, left-to-right then top-to-bottom —
     /// the same order the game draws them.</summary>

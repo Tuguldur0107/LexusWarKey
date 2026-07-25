@@ -96,9 +96,14 @@ public sealed class WarKeyProfile
         return profile;
     }
 
-    /// <summary>Older profiles (and hand-edited files) may have the wrong number of slots.</summary>
+    /// <summary>Older profiles (and hand-edited files) may have the wrong number of slots, or
+    /// slots left "enabled" with no key — which reads as configured but does nothing.</summary>
     public void NormaliseSlots()
     {
+        foreach (var map in Inventory.Concat(Skills))
+            if (map.FromVk == 0)
+                map.Enabled = false;
+
         while (Inventory.Count < InventorySlots)
             Inventory.Add(new KeyMap { ToVk = VirtualKeys.DefaultInventory[Inventory.Count] });
         while (Inventory.Count > InventorySlots)
