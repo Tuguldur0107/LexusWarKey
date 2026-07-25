@@ -161,8 +161,12 @@ public sealed partial class MainViewModel : ObservableObject
     [ObservableProperty] private bool _updateAvailable;
     [ObservableProperty] private string _updateText = "";
     [ObservableProperty] private bool _isUpdating;
+    [ObservableProperty] private bool _isCheckingUpdate;
     [ObservableProperty] private double _updateProgress;
+    [ObservableProperty] private bool _autoInstallUpdates;
     private UpdateInfo? _pendingUpdate;
+
+    partial void OnAutoInstallUpdatesChanged(bool value) { _profile.AutoInstallUpdates = value; Save(); }
 
     public string VersionText => $"v{UpdateChecker.CurrentVersion}";
     [ObservableProperty] private string _calibrationText = "";
@@ -187,6 +191,7 @@ public sealed partial class MainViewModel : ObservableObject
         _skillsUsePosition = _profile.SkillsUsePosition;
         _moveCursorForClicks = _profile.MoveCursorForClicks;
         _minimiseToTray = _profile.MinimiseToTray;
+        _autoInstallUpdates = _profile.AutoInstallUpdates;
         _startWithWindows = _startup.IsEnabled();
         if (_startWithWindows)
             _startup.RepairPathIfNeeded();
@@ -239,27 +244,54 @@ public sealed partial class MainViewModel : ObservableObject
 
     // ---- update check (asks first, never installs silently) ----
 
-    private async Task CheckForUpdateAsync()
+    private async Task CheckForUpdateAsync(bool announceWhenUpToDate = false)
     {
-        var info = await new UpdateChecker().CheckAsync().ConfigureAwait(true);
+        IsCheckingUpdate = true;
+        UpdateInfo? info;
+        try
+        {
+            info = await new UpdateChecker().CheckAsync().ConfigureAwait(true);
+        }
+        finally
+        {
+            IsCheckingUpdate = false;
+        }
+
         if (info is null)
+        {
+            if (announceWhenUpToDate)
+                MessageBox.Show($"Та хамгийн сүүлийн хувилбар дээр байна (v{UpdateChecker.CurrentVersion}).",
+                    "Lexus WarKey", MessageBoxButton.OK, MessageBoxImage.Information);
             return;
+        }
+
         _pendingUpdate = info;
         UpdateAvailable = true;
         UpdateText = $"Шинэ хувилбар гарсан: v{info.Version} ({info.SizeBytes / (1024 * 1024)} MB)";
+
+        if (AutoInstallUpdates)
+            await InstallUpdateAsync(skipConfirmation: true).ConfigureAwait(true);
     }
 
     [RelayCommand]
-    private async Task InstallUpdateAsync()
+    private Task CheckUpdateNow() => CheckForUpdateAsync(announceWhenUpToDate: true);
+
+    [RelayCommand]
+    private Task InstallUpdate() => InstallUpdateAsync(skipConfirmation: false);
+
+    private async Task InstallUpdateAsync(bool skipConfirmation)
     {
         if (_pendingUpdate is null || IsUpdating)
             return;
 
-        var confirm = MessageBox.Show(
-            $"v{_pendingUpdate.Version} татаж суулгах уу?\n\nАпп татаж дуусаад автоматаар дахин нээгдэнэ. Таны тохиргоо хэвээр үлдэнэ.",
-            "Lexus WarKey", MessageBoxButton.YesNo, MessageBoxImage.Question);
-        if (confirm != MessageBoxResult.Yes)
-            return;
+        if (!skipConfirmation)
+        {
+            var confirm = MessageBox.Show(
+                $"v{_pendingUpdate.Version} татаж суулгах уу?\n\nАпп татаж дуусаад автоматаар дахин нээгдэнэ. Таны тохиргоо хэвээр үлдэнэ.",
+                "Lexus WarKey", MessageBoxButton.YesNo, MessageBoxImage.Question);
+            if (confirm != MessageBoxResult.Yes)
+                return;
+        }
 
         IsUpdating = true;
         UpdateProgress = 0;

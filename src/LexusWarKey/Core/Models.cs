@@ -59,6 +59,10 @@ public sealed class WarKeyProfile
     /// <summary>Null until the app has asked once whether it should start with Windows.</summary>
     public bool? StartWithWindows { get; set; }
 
+    /// <summary>When true a new release is downloaded and installed on startup without asking.
+    /// Off by default: silently replacing a running executable is something the user opts into.</summary>
+    public bool AutoInstallUpdates { get; set; }
+
     /// <summary>Closing the window hides the app to the notification area instead of quitting,
     /// so the remapper keeps working without occupying the taskbar.</summary>
     public bool MinimiseToTray { get; set; } = true;

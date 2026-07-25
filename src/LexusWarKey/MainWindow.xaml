@@ -120,7 +120,7 @@
                                          Background="#1A1817" BorderThickness="0"
                                          Visibility="{Binding IsUpdating, Converter={StaticResource BoolToVis}}" />
                         </StackPanel>
-                        <StackPanel Grid.Column="1" Orientation="Horizontal">
+                        <StackPanel Grid.Column="1" Orientation="Horizontal" VerticalAlignment="Center">
                             <Button Style="{StaticResource Btn.Ghost}" Content="Юу шинэчлэгдсэн?" Command="{Binding OpenReleasePageCommand}" />
                             <Button Style="{StaticResource Btn.Accent}" Content="Шинэчлэх" Margin="8,0,0,0"
                                     Command="{Binding InstallUpdateCommand}" IsEnabled="{Binding IsUpdating, Converter={StaticResource InverseBool}}" />
@@ -303,6 +303,22 @@
                                                Text="%LocalAppData%\LexusWarKey\profile.json — өөрчлөлт болгон шууд хадгалагдана." />
                                     <TextBlock Style="{StaticResource Dim}" Margin="0,6,0,0"
                                                Text="Windows-тэй хамт асаах тохиргоо нь зөвхөн таны хэрэглэгчид хамаарна (админ эрх шаардахгүй). Task Manager → Startup хэсгээс ч удирдаж болно." />
+                                </StackPanel>
+                            </Border>
+
+                            <Border Style="{StaticResource Card}" Margin="0,10,0,0">
+                                <StackPanel>
+                                    <TextBlock Style="{StaticResource H2}" Text="Шинэчлэлт" />
+                                    <CheckBox IsChecked="{Binding AutoInstallUpdates}" Margin="0,10,0,0"
+                                              Content="Автоматаар татаад суулгах (асуулгүй)" />
+                                    <TextBlock Style="{StaticResource Dim}" Margin="27,5,0,0"
+                                               Text="Асаалттай үед апп нээгдэх бүрд шинэ хувилбар байвал өөрөө татаж суулгаад дахин нээгдэнэ. Унтраалттай үед зөвхөн ногоон туузаар санал болгоно." />
+                                    <StackPanel Orientation="Horizontal" Margin="0,12,0,0">
+                                        <Button Content="Одоо шалгах" Command="{Binding CheckUpdateNowCommand}"
+                                                IsEnabled="{Binding IsCheckingUpdate, Converter={StaticResource InverseBool}}" />
+                                        <TextBlock Text="{Binding VersionText}" Foreground="{StaticResource B.Dim}"
+                                                   VerticalAlignment="Center" Margin="12,0,0,0" />
+                                    </StackPanel>
                                 </StackPanel>
                             </Border>
 
