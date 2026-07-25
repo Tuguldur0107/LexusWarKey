@@ -26,10 +26,33 @@ public sealed class KeyboardHookService : IDisposable
     /// <summary>1 while a chat macro is typing. Two at once would interleave keystrokes.</summary>
     private int _macroInFlight;
 
+    /// <summary>All clicks run through one thread, one after another. On the ThreadPool two
+    /// rapid casts could interleave their cursor excursions — the cursor ping-ponged and both
+    /// clicks could land wrong. Bounded small: a queue of stale clicks is worse than a drop.</summary>
+    private readonly System.Collections.Concurrent.BlockingCollection<(int X, int Y, bool Right)> _clickQueue = new(4);
+
+    /// <summary>Spamming a skill key is normal play, but the first click already armed the
+    /// ability — every repeat within this window would only steal the cursor again for no
+    /// game effect. The log showed nine identical clicks in four seconds doing exactly that.</summary>
+    private const int RepeatClickWindowMs = 250;
+    private int _lastClickX, _lastClickY;
+    private long _lastClickTicks;
+
     public KeyboardHookService(RemapEngine engine)
     {
         _engine = engine;
         _callback = HookCallback;
+
+        var clickThread = new Thread(() =>
+        {
+            foreach (var (x, y, right) in _clickQueue.GetConsumingEnumerable())
+                SafeClick(x, y, right);
+        })
+        {
+            IsBackground = true,
+            Name = "LexusWarKey clicks",
+        };
+        clickThread.Start();
     }
 
     public bool IsInstalled => _hook != IntPtr.Zero;
@@ -183,9 +206,20 @@ public sealed class KeyboardHookService : IDisposable
                 case RemapAction.ClickSlot when decision.ClickAt is { } point:
                     if (!_actionHeld.Add(vk))
                         return 1; // OS auto-repeat of a held key — one press, one click
-                    var right = decision.RightClick;
+
+                    // Spam-tapping the same skill: the button is already armed, a second
+                    // click changes nothing in the game and only yanks the cursor again.
+                    var now = Environment.TickCount64;
+                    if (point.X == _lastClickX && point.Y == _lastClickY
+                        && now - _lastClickTicks < RepeatClickWindowMs)
+                        return 1;
+                    _lastClickX = point.X;
+                    _lastClickY = point.Y;
+                    _lastClickTicks = now;
+
                     // Clicking involves sleeps; doing it inside the hook would freeze input.
-                    ThreadPool.QueueUserWorkItem(_ => SafeClick(point.X, point.Y, right));
+                    // TryAdd: with four clicks already waiting, a fifth is stale — drop it.
+                    _clickQueue.TryAdd((point.X, point.Y, decision.RightClick));
                     return 1;
 
                 case RemapAction.ClickSlot:
@@ -222,8 +256,10 @@ public sealed class KeyboardHookService : IDisposable
     {
         try
         {
+            var watch = System.Diagnostics.Stopwatch.StartNew();
             InputSender.ClickAt(x, y, rightClick);
-            DiagnosticLog.Write($"click ({x},{y}) right={rightClick}");
+            watch.Stop();
+            DiagnosticLog.Write($"click ({x},{y}) right={rightClick} {watch.ElapsedMilliseconds}ms");
         }
         catch { /* a failed click must never take the app down */ }
     }
@@ -277,5 +313,9 @@ public sealed class KeyboardHookService : IDisposable
         }
     }
 
-    public void Dispose() => Uninstall();
+    public void Dispose()
+    {
+        Uninstall();
+        _clickQueue.CompleteAdding(); // lets the click thread finish its loop and exit
+    }
 }
