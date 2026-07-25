@@ -151,6 +151,10 @@ public sealed partial class MainViewModel : ObservableObject
 
     [ObservableProperty] private bool _skillsUsePosition;
     [ObservableProperty] private bool _moveCursorForClicks;
+    [ObservableProperty] private bool _startWithWindows;
+    [ObservableProperty] private bool _minimiseToTray;
+
+    private readonly StartupService _startup = new();
 
     [ObservableProperty] private bool _updateAvailable;
     [ObservableProperty] private string _updateText = "";
@@ -180,6 +184,10 @@ public sealed partial class MainViewModel : ObservableObject
         _onlyWhenGameFocused = _profile.OnlyWhenGameFocused;
         _skillsUsePosition = _profile.SkillsUsePosition;
         _moveCursorForClicks = _profile.MoveCursorForClicks;
+        _minimiseToTray = _profile.MinimiseToTray;
+        _startWithWindows = _startup.IsEnabled();
+        if (_startWithWindows)
+            _startup.RepairPathIfNeeded();
 
         InventoryRows = new ObservableCollection<KeyMapRow>(
             _profile.Inventory.Select((m, i) => new KeyMapRow($"{i + 1}", m, Save, BeginKeyCapture)));
@@ -198,7 +206,33 @@ public sealed partial class MainViewModel : ObservableObject
         RefreshCalibration();
 
         UpdateInstaller.CleanupAfterUpdate();
+        AskAboutStartupOnce();
         _ = CheckForUpdateAsync();
+    }
+
+    /// <summary>Asked once, on the very first run — the closest a portable app gets to an
+    /// installer question. The answer is remembered so it never nags again.</summary>
+    private void AskAboutStartupOnce()
+    {
+        if (_profile.StartWithWindows is not null)
+            return;
+
+        var answer = MessageBox.Show(
+            "Windows асахад Lexus WarKey автоматаар ажиллаж эхлэх үү?\n\n" +
+            "Ингэснээр тоглохын өмнө бүр сануулгагүйгээр товчнууд чинь бэлэн байна.\n" +
+            "Дараа нь Тохиргоо хэсгээс хэдийд ч өөрчилж болно.",
+            "Lexus WarKey", MessageBoxButton.YesNo, MessageBoxImage.Question);
+
+        var enable = answer == MessageBoxResult.Yes;
+        _profile.StartWithWindows = enable;
+        if (enable && !_startup.TrySet(true))
+        {
+            MessageBox.Show("Автомат эхлүүлэлтийг бүртгэж чадсангүй. Тохиргоо хэсгээс дахин оролдож болно.",
+                "Lexus WarKey", MessageBoxButton.OK, MessageBoxImage.Warning);
+            _profile.StartWithWindows = false;
+        }
+        StartWithWindows = _startup.IsEnabled();
+        Save();
     }
 
     // ---- update check (asks first, never installs silently) ----
@@ -265,6 +299,20 @@ public sealed partial class MainViewModel : ObservableObject
 
     partial void OnSkillsUsePositionChanged(bool value) { _profile.SkillsUsePosition = value; Save(); RefreshCalibration(); }
     partial void OnMoveCursorForClicksChanged(bool value) { _profile.MoveCursorForClicks = value; Save(); }
+    partial void OnMinimiseToTrayChanged(bool value) { _profile.MinimiseToTray = value; Save(); }
+
+    partial void OnStartWithWindowsChanged(bool value)
+    {
+        if (!_startup.TrySet(value) && value)
+        {
+            MessageBox.Show("Автомат эхлүүлэлтийг бүртгэж чадсангүй.", "Lexus WarKey",
+                MessageBoxButton.OK, MessageBoxImage.Warning);
+            StartWithWindows = false;
+            return;
+        }
+        _profile.StartWithWindows = value;
+        Save();
+    }
 
     // ---- command-card calibration (position-based skills) ----
 

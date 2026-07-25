@@ -56,6 +56,13 @@ public sealed class WarKeyProfile
     public double? OverlayLeft { get; set; }
     public double? OverlayTop { get; set; }
 
+    /// <summary>Null until the app has asked once whether it should start with Windows.</summary>
+    public bool? StartWithWindows { get; set; }
+
+    /// <summary>Closing the window hides the app to the notification area instead of quitting,
+    /// so the remapper keeps working without occupying the taskbar.</summary>
+    public bool MinimiseToTray { get; set; } = true;
+
     /// <summary>Remapping only acts while Warcraft III has focus — never in other programs.</summary>
     public bool OnlyWhenGameFocused { get; set; } = true;
     public bool Enabled { get; set; } = true;

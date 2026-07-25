@@ -8,18 +8,26 @@
         <BooleanToVisibilityConverter x:Key="BoolToVis" />
         <local:InverseBoolConverter x:Key="InverseBool" />
 
-        <!-- Palette -->
-        <SolidColorBrush x:Key="B.Bg"      Color="#1A1917" />
-        <SolidColorBrush x:Key="B.Panel"   Color="#221F1D" />
-        <SolidColorBrush x:Key="B.Card"    Color="#2A2724" />
-        <SolidColorBrush x:Key="B.Hover"   Color="#332F2B" />
-        <SolidColorBrush x:Key="B.Border"  Color="#3A3632" />
-        <SolidColorBrush x:Key="B.Text"    Color="#EFEDE8" />
-        <SolidColorBrush x:Key="B.Dim"     Color="#9C978D" />
-        <SolidColorBrush x:Key="B.Accent"  Color="#D97757" />
-        <SolidColorBrush x:Key="B.AccentDim" Color="#3A2A24" />
-        <SolidColorBrush x:Key="B.Ok"      Color="#7FB185" />
-        <SolidColorBrush x:Key="B.Warn"    Color="#DDA85C" />
+        <!-- Palette: pure black, with the logo's red / white / blue keycaps as the accents -->
+        <SolidColorBrush x:Key="B.Bg"      Color="#000000" />
+        <SolidColorBrush x:Key="B.Panel"   Color="#0A0A0B" />
+        <SolidColorBrush x:Key="B.Card"    Color="#121316" />
+        <SolidColorBrush x:Key="B.Hover"   Color="#1C1E22" />
+        <SolidColorBrush x:Key="B.Border"  Color="#2A2D33" />
+        <SolidColorBrush x:Key="B.Text"    Color="#FFFFFF" />
+        <SolidColorBrush x:Key="B.Dim"     Color="#8B9099" />
+
+        <!-- logo colours -->
+        <SolidColorBrush x:Key="B.Red"     Color="#E23B3B" />
+        <SolidColorBrush x:Key="B.RedDim"  Color="#2A1214" />
+        <SolidColorBrush x:Key="B.Blue"    Color="#2F7FE8" />
+        <SolidColorBrush x:Key="B.BlueDim" Color="#0E1F35" />
+
+        <!-- blue is the primary accent, red is reserved for destructive things -->
+        <SolidColorBrush x:Key="B.Accent"    Color="#2F7FE8" />
+        <SolidColorBrush x:Key="B.AccentDim" Color="#0E1F35" />
+        <SolidColorBrush x:Key="B.Ok"        Color="#3FBF6A" />
+        <SolidColorBrush x:Key="B.Warn"      Color="#E8A33B" />
 
         <!-- Typography -->
         <Style TargetType="TextBlock">
@@ -167,6 +175,7 @@
 
         <!-- One slot of the Warcraft-shaped grid: a plain box holding the key, exactly like
              the game's own inventory/command-card squares. Click it to rebind. -->
+        <!-- Keycap-style slot, echoing the logo's chunky keys -->
         <Style x:Key="SlotButton" TargetType="Button">
             <Setter Property="Width" Value="78" />
             <Setter Property="Height" Value="58" />
@@ -175,16 +184,16 @@
             <Setter Property="Template">
                 <Setter.Value>
                     <ControlTemplate TargetType="Button">
-                        <Border x:Name="B" Background="#1B1917" BorderBrush="{StaticResource B.Border}"
-                                BorderThickness="1.5" CornerRadius="7">
+                        <Border x:Name="B" Background="#16181C" BorderBrush="{StaticResource B.Border}"
+                                BorderThickness="2" CornerRadius="8">
                             <TextBlock Text="{TemplateBinding Content}" HorizontalAlignment="Center"
-                                       VerticalAlignment="Center" FontSize="15" FontWeight="SemiBold"
+                                       VerticalAlignment="Center" FontSize="16" FontWeight="Bold"
                                        Foreground="{StaticResource B.Text}" />
                         </Border>
                         <ControlTemplate.Triggers>
                             <Trigger Property="IsMouseOver" Value="True">
-                                <Setter TargetName="B" Property="BorderBrush" Value="{StaticResource B.Accent}" />
-                                <Setter TargetName="B" Property="Background" Value="#241E1B" />
+                                <Setter TargetName="B" Property="BorderBrush" Value="{StaticResource B.Blue}" />
+                                <Setter TargetName="B" Property="Background" Value="{StaticResource B.BlueDim}" />
                             </Trigger>
                         </ControlTemplate.Triggers>
                     </ControlTemplate>
@@ -195,9 +204,32 @@
         <Style x:Key="PanelTitle" TargetType="TextBlock">
             <Setter Property="FontSize" Value="14" />
             <Setter Property="FontWeight" Value="Bold" />
-            <Setter Property="Foreground" Value="#D9B45C" />
+            <Setter Property="Foreground" Value="{StaticResource B.Text}" />
             <Setter Property="HorizontalAlignment" Value="Center" />
             <Setter Property="Margin" Value="0,0,0,8" />
+        </Style>
+
+        <!-- Destructive actions wear the logo's red -->
+        <Style x:Key="Btn.Red" TargetType="Button">
+            <Setter Property="Foreground" Value="#FFFFFF" />
+            <Setter Property="FontSize" Value="13" />
+            <Setter Property="FontWeight" Value="Medium" />
+            <Setter Property="Padding" Value="14,8" />
+            <Setter Property="Cursor" Value="Hand" />
+            <Setter Property="Template">
+                <Setter.Value>
+                    <ControlTemplate TargetType="Button">
+                        <Border x:Name="B" Background="{StaticResource B.Red}" CornerRadius="8" Padding="{TemplateBinding Padding}">
+                            <ContentPresenter HorizontalAlignment="Center" VerticalAlignment="Center" />
+                        </Border>
+                        <ControlTemplate.Triggers>
+                            <Trigger Property="IsMouseOver" Value="True">
+                                <Setter TargetName="B" Property="Opacity" Value="0.85" />
+                            </Trigger>
+                        </ControlTemplate.Triggers>
+                    </ControlTemplate>
+                </Setter.Value>
+            </Setter>
         </Style>
 
         <Style x:Key="CellChip" TargetType="Button">
