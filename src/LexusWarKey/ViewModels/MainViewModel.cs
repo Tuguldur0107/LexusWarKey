@@ -558,12 +558,14 @@ public sealed partial class MainViewModel : ObservableObject
             ? _overlaySession.SelectedIndex
             : -1;
 
+        // Monochrome on black: the selected slot is marked with a solid white outline
+        // rather than a colour, so the panel stays readable over any game background.
         return maps.Select((m, i) => new OverlaySlot(
             group,
             i,
             m.FromVk == 0 ? "—" : VirtualKeys.NameOf(m.FromVk),
-            Background: i == selected ? "#4A2E22" : "#181615",
-            Border: i == selected ? "#D97757" : "#3A3632")).ToList();
+            Background: i == selected ? "#40FFFFFF" : "#66000000",
+            Border: i == selected ? "#FFFFFFFF" : "#4DFFFFFF")).ToList();
     }
 
     // ---- rows ----

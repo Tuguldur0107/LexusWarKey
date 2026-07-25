@@ -7,29 +7,30 @@
         Topmost="True" ShowInTaskbar="False" ShowActivated="False"
         FontFamily="Segoe UI Variable Text, Segoe UI" UseLayoutRounding="True">
 
-    <Border Background="#F51E1B19" CornerRadius="12" BorderBrush="#D97757" BorderThickness="1" Padding="14">
+    <!-- Pure black at 80% so the game stays readable behind it (CC = 204/255). -->
+    <Border Background="#CC000000" CornerRadius="12" BorderBrush="#66FFFFFF" BorderThickness="1" Padding="14">
         <StackPanel>
 
             <!-- drag handle -->
-            <Border x:Name="DragHandle" Background="#00000000" Cursor="SizeAll" Padding="2,0,2,8">
+            <Border x:Name="DragHandle" Background="#01FFFFFF" Cursor="SizeAll" Padding="2,0,2,8">
                 <Grid>
                     <StackPanel Orientation="Horizontal">
-                        <TextBlock Text="⠿" Foreground="#6E6A63" FontSize="14" VerticalAlignment="Center" Margin="0,0,8,0" />
-                        <TextBlock Text="Lexus" Foreground="#D97757" FontWeight="Bold" FontSize="13" />
-                        <TextBlock Text=" WarKey" Foreground="#EFEDE8" FontWeight="SemiBold" FontSize="13" />
+                        <TextBlock Text="⠿" Foreground="#80FFFFFF" FontSize="14" VerticalAlignment="Center" Margin="0,0,8,0" />
+                        <TextBlock Text="Lexus WarKey" Foreground="#FFFFFF" FontWeight="Bold" FontSize="13" />
                     </StackPanel>
-                    <TextBlock Text="чирж зөөнө · Ctrl+F6 хаах" Foreground="#6E6A63" FontSize="10"
+                    <TextBlock Text="чирж зөөнө · Ctrl+F6 хаах" Foreground="#80FFFFFF" FontSize="10"
                                HorizontalAlignment="Right" VerticalAlignment="Center" />
                 </Grid>
             </Border>
 
-            <TextBlock x:Name="PromptText" Foreground="#DDA85C" FontSize="11" Margin="2,0,0,10" TextWrapping="Wrap"
-                       MaxWidth="520" Text="Нүд дээр дар, дараа нь товчоо дар" />
+            <TextBlock x:Name="PromptText" Foreground="#FFFFFF" FontSize="12" FontWeight="SemiBold"
+                       Margin="2,0,0,10" TextWrapping="Wrap" MaxWidth="520"
+                       Text="Нүд дээр дар, дараа нь товчоо дар" />
 
             <!-- grids, laid out like the game -->
             <StackPanel Orientation="Horizontal">
                 <StackPanel>
-                    <TextBlock Text="Inventory" Foreground="#D9B45C" FontWeight="Bold" FontSize="12"
+                    <TextBlock Text="Inventory" Foreground="#FFFFFF" FontWeight="Bold" FontSize="12"
                                HorizontalAlignment="Center" Margin="0,0,0,6" />
                     <ItemsControl x:Name="InventoryList" Width="132">
                         <ItemsControl.ItemsPanel>
@@ -40,7 +41,7 @@
                                 <Border Width="58" Height="42" Margin="3" CornerRadius="6" Cursor="Hand"
                                         Background="{Binding Background}" BorderBrush="{Binding Border}" BorderThickness="1.5"
                                         Tag="{Binding}" MouseLeftButtonDown="Slot_Click">
-                                    <TextBlock Text="{Binding KeyName}" Foreground="#EFEDE8" FontSize="13"
+                                    <TextBlock Text="{Binding KeyName}" Foreground="#FFFFFF" FontSize="13"
                                                FontWeight="SemiBold" HorizontalAlignment="Center" VerticalAlignment="Center" />
                                 </Border>
                             </DataTemplate>
@@ -49,7 +50,7 @@
                 </StackPanel>
 
                 <StackPanel Margin="14,0,0,0">
-                    <TextBlock Text="Skills" Foreground="#D9B45C" FontWeight="Bold" FontSize="12"
+                    <TextBlock Text="Skills" Foreground="#FFFFFF" FontWeight="Bold" FontSize="12"
                                HorizontalAlignment="Center" Margin="0,0,0,6" />
                     <ItemsControl x:Name="SkillList" Width="264">
                         <ItemsControl.ItemsPanel>
@@ -60,7 +61,7 @@
                                 <Border Width="58" Height="42" Margin="3" CornerRadius="6" Cursor="Hand"
                                         Background="{Binding Background}" BorderBrush="{Binding Border}" BorderThickness="1.5"
                                         Tag="{Binding}" MouseLeftButtonDown="Slot_Click">
-                                    <TextBlock Text="{Binding KeyName}" Foreground="#EFEDE8" FontSize="13"
+                                    <TextBlock Text="{Binding KeyName}" Foreground="#FFFFFF" FontSize="13"
                                                FontWeight="SemiBold" HorizontalAlignment="Center" VerticalAlignment="Center" />
                                 </Border>
                             </DataTemplate>
@@ -69,8 +70,8 @@
                 </StackPanel>
             </StackPanel>
 
-            <TextBlock Foreground="#6E6A63" FontSize="10" Margin="2,10,0,0" TextWrapping="Wrap" MaxWidth="520"
-                       Text="Тоглоом фокусаа алддаггүй — энэ самбар фокус авдаггүй. Backspace = нүд цэвэрлэх." />
+            <TextBlock Foreground="#80FFFFFF" FontSize="10" Margin="2,10,0,0" TextWrapping="Wrap" MaxWidth="520"
+                       Text="Тоглоом фокусаа алддаггүй. Backspace = нүд цэвэрлэх · Esc = болих" />
         </StackPanel>
     </Border>
 </Window>
