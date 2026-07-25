@@ -28,7 +28,12 @@ jobs:
         run: |
           $tag = "${{ github.ref_name }}"
           $version = $tag.TrimStart('v')
-          if ($version -notmatch '^\d+\.\d+\.\d+$') { $version = '1.0.0' }
+          # Falling back to a placeholder here would ship a binary stamped older than the tag,
+          # and every client would download it forever without the version ever changing.
+          if ($version -notmatch '^\d+\.\d+\.\d+$') {
+            Write-Error "Tag '$tag' is not vMAJOR.MINOR.PATCH — refusing to build a mis-stamped release."
+            exit 1
+          }
           "version=$version" >> $env:GITHUB_OUTPUT
 
       - name: Test
@@ -46,16 +51,24 @@ jobs:
           -o publish
 
       - name: Checksum
+        id: checksum
         shell: pwsh
         run: |
           $hash = (Get-FileHash publish/LexusWarKey.exe -Algorithm SHA256).Hash
           "SHA256: $hash" | Tee-Object -FilePath publish/SHA256.txt
+          "sha256=$hash" >> $env:GITHUB_OUTPUT
 
+      # The hash goes in the release BODY, not just the asset. The updater reads the body from
+      # api.github.com while the exe comes from the release CDN, so tampering with the download
+      # alone is not enough to pass verification — the two would have to be compromised together.
       - name: Create release
         uses: softprops/action-gh-release@v2
         with:
           name: Lexus WarKey ${{ github.ref_name }}
           generate_release_notes: true
+          append_body: true
+          body: |
+            SHA256: ${{ steps.checksum.outputs.sha256 }}
           files: |
             publish/LexusWarKey.exe
             publish/SHA256.txt

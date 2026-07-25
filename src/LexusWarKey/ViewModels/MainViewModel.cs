@@ -131,6 +131,7 @@ public sealed partial class MainViewModel : ObservableObject
 {
     private readonly ProfileStore _store;
     private readonly GameWindowWatcher _watcher;
+    private readonly RemapEngine _engine;
     private readonly KeyboardHookService _hook;
     private readonly WarKeyProfile _profile;
     private readonly System.Windows.Threading.DispatcherTimer _statusTimer;
@@ -179,8 +180,8 @@ public sealed partial class MainViewModel : ObservableObject
         _profile = _store.Load();
         _watcher = new GameWindowWatcher();
 
-        var engine = new RemapEngine(() => _profile, _watcher.IsGameFocused);
-        _hook = new KeyboardHookService(engine, _watcher.GameWindowHandle, () => _profile.MoveCursorForClicks);
+        _engine = new RemapEngine(() => _profile, _watcher.IsGameFocused);
+        _hook = new KeyboardHookService(_engine, _watcher.GameWindowHandle, () => _profile.MoveCursorForClicks);
         _hook.ToggleRequested += () => Application.Current?.Dispatcher.BeginInvoke(() => IsEnabled = !IsEnabled);
         _hook.OverlayToggleRequested += () => Application.Current?.Dispatcher.BeginInvoke(ToggleOverlay);
         _hook.ConfigKeyPressed += vk => Application.Current?.Dispatcher.BeginInvoke(() => OnOverlayKey(vk));
@@ -301,8 +302,9 @@ public sealed partial class MainViewModel : ObservableObject
             var progress = new Progress<double>(p => UpdateProgress = p);
             var staged = await installer.DownloadAsync(_pendingUpdate, progress).ConfigureAwait(true);
             Save();
-            Shutdown();
-            installer.ApplyAndRestart(staged);
+            // Shutdown runs inside ApplyAndRestart, after the swap is committed — if any of the
+            // file moves fail we are still fully alive and the catch below is telling the truth.
+            installer.ApplyAndRestart(staged, Shutdown);
         }
         catch (Exception ex)
         {
@@ -430,7 +432,16 @@ public sealed partial class MainViewModel : ObservableObject
         RefreshCalibration();
     }
 
-    partial void OnIsEnabledChanged(bool value) { _profile.Enabled = value; Save(); RefreshStatus(); RefreshConflicts(); }
+    // Ctrl+F5 off and on again also clears the chat tracker, so it is the one recovery the user
+    // can reach from inside the game if it ever gets out of step with what Warcraft is showing.
+    partial void OnIsEnabledChanged(bool value)
+    {
+        _profile.Enabled = value;
+        _engine.ResetChatState();
+        Save();
+        RefreshStatus();
+        RefreshConflicts();
+    }
     partial void OnOnlyWhenGameFocusedChanged(bool value) { _profile.OnlyWhenGameFocused = value; Save(); RefreshStatus(); }
 
     // ---- key capture ----
@@ -608,9 +619,19 @@ public sealed partial class MainViewModel : ObservableObject
             ? "Давхардсан товч: " + string.Join(", ", conflicts.Select(VirtualKeys.NameOf))
             : "";
 
-        var dead = RemapEngine.FindDeadBindings(_profile);
-        HasProblems = dead.Count > 0;
-        ProblemText = string.Join("\n", dead.Select(p => "• " + p));
+        var problems = new List<string>();
+
+        // Anything wrong with the profile file itself belongs at the top: it explains why the
+        // bindings below may not be the ones the user set, and it must never scroll past unseen.
+        if (_store.LoadWarning is { } warning)
+            problems.Add(warning);
+        if (!_hook.IsInstalled)
+            problems.Add("Товч уншигч ажиллахгүй байна. Аппаа хааж дахин нээнэ үү.");
+
+        problems.AddRange(RemapEngine.FindDeadBindings(_profile));
+
+        HasProblems = problems.Count > 0;
+        ProblemText = string.Join("\n", problems.Select(p => "• " + p));
     }
 
     private void RefreshStatus()
@@ -618,10 +639,47 @@ public sealed partial class MainViewModel : ObservableObject
         var focused = _watcher.IsGameFocused();
         StatusIsLive = IsEnabled && (focused || !OnlyWhenGameFocused);
 
+        // Second line of defence for the chat tracker: if the game is not in front there is
+        // no chat line, so anything the tracker believes is stale. Without this a mistracked
+        // Enter would leave the app permanently, and invisibly, doing nothing.
+        if (!focused)
+            _engine.ResetChatState();
+
+        // Alt-tabbing away in the middle of a half-typed message leaves the game's chat line open
+        // while ours is cleared, and from then on our idea of it is inverted — which would suspend
+        // remapping indefinitely. Nobody leaves a message half-written for twenty seconds, so
+        // silence that long is taken as proof the line is not really open.
+        else if (_engine.ChatOpen && _hook.SinceLastKey > TimeSpan.FromSeconds(20))
+            _engine.ResetChatState();
+
+        // While the game is in front, keys are being pressed constantly. A full minute of
+        // silence means Windows dropped our hook without telling us — put it back before the
+        // player notices their inventory keys have quietly stopped working.
+        if (focused && IsEnabled)
+        {
+            try
+            {
+                _hook.ReArmIfSilent(TimeSpan.FromSeconds(60));
+            }
+            catch
+            {
+                // Windows refused. Fall through: the panel below now says the remapper is dead,
+                // which is the one thing the user has to know.
+            }
+
+            if (!_hook.IsInstalled)
+                RefreshConflicts();
+        }
+
         if (!IsEnabled)
         {
             StatusText = "Унтраалттай";
             StatusDetail = "Ctrl + F5 дарж асаана";
+        }
+        else if (focused && _engine.ChatOpen)
+        {
+            StatusText = "Чат нээлттэй";
+            StatusDetail = "Товч солилт түр зогссон — Enter дарж илгээнэ";
         }
         else if (focused)
         {

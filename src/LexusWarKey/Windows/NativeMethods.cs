@@ -78,6 +78,11 @@ internal static class NativeMethods
     [DllImport("user32.dll")]
     internal static extern short GetAsyncKeyState(int vKey);
 
+    internal const uint MAPVK_VK_TO_VSC = 0;
+
+    [DllImport("user32.dll")]
+    internal static extern uint MapVirtualKey(uint uCode, uint uMapType);
+
     // ---- mouse (position-based skill clicks + calibration) ----
 
     internal const int WH_MOUSE_LL = 14;

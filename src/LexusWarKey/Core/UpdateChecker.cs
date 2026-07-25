@@ -3,7 +3,11 @@ using System.Text.Json;
 
 namespace LexusWarKey.Core;
 
-public sealed record UpdateInfo(string Version, string DownloadUrl, long SizeBytes, string ReleaseUrl, string Notes);
+/// <summary><paramref name="Sha256"/> is the hash the release notes claim the exe has, or null
+/// if the release does not publish one. It is read from api.github.com while the exe itself comes
+/// from the release CDN, so it is not merely a checksum of whatever the same responder sent.</summary>
+public sealed record UpdateInfo(
+    string Version, string DownloadUrl, long SizeBytes, string ReleaseUrl, string Notes, string? Sha256 = null);
 
 /// <summary>Asks GitHub whether a newer release exists.
 ///
@@ -31,17 +35,25 @@ public sealed class UpdateChecker
     public static string CurrentVersion =>
         typeof(UpdateChecker).Assembly.GetName().Version is { } v ? $"{v.Major}.{v.Minor}.{v.Build}" : "0.0.0";
 
-    /// <summary>Null when we are up to date, the check failed, or the release has no exe.</summary>
+    /// <summary>True when the last <see cref="CheckAsync"/> could not reach GitHub at all.
+    /// Without it, "no update" and "could not ask" look identical, and the app cheerfully tells
+    /// an offline user they are on the latest version.</summary>
+    public bool LastCheckFailed { get; private set; }
+
+    /// <summary>Null when we are up to date, the check failed, or the release has no exe.
+    /// Check <see cref="LastCheckFailed"/> to tell the first case from the second.</summary>
     public async Task<UpdateInfo?> CheckAsync(CancellationToken ct = default)
     {
         try
         {
             var json = await _http.GetStringAsync(LatestReleaseApi, ct).ConfigureAwait(false);
+            LastCheckFailed = false;
             return ParseIfNewer(json, CurrentVersion);
         }
         catch
         {
-            return null; // offline, rate-limited, no releases yet — never bother the user with it
+            LastCheckFailed = true;
+            return null; // offline, rate-limited, no releases yet
         }
     }
 
@@ -79,9 +91,22 @@ public sealed class UpdateChecker
             var size = asset.TryGetProperty("size", out var s) ? s.GetInt64() : 0;
             var page = root.TryGetProperty("html_url", out var h) ? h.GetString() ?? "" : "";
             var notes = root.TryGetProperty("body", out var b) ? b.GetString() ?? "" : "";
-            return new UpdateInfo(Normalise(tag), url, size, page, notes);
+            return new UpdateInfo(Normalise(tag), url, size, page, notes, ExtractSha256(notes));
         }
         return null;
+    }
+
+    /// <summary>Pulls the "SHA256: &lt;hex&gt;" line the release workflow writes into the notes.
+    /// Null when the release does not publish one — the installer then refuses rather than
+    /// running an unverified executable.</summary>
+    public static string? ExtractSha256(string? notes)
+    {
+        if (string.IsNullOrEmpty(notes))
+            return null;
+        var match = System.Text.RegularExpressions.Regex.Match(
+            notes, @"SHA-?256\s*[:=]\s*([0-9a-fA-F]{64})\b",
+            System.Text.RegularExpressions.RegexOptions.IgnoreCase);
+        return match.Success ? match.Groups[1].Value.ToLowerInvariant() : null;
     }
 
     /// <summary>Only ever accept a download that really comes from this repository's releases.</summary>

@@ -24,7 +24,8 @@ public sealed class ChatMacro
     public int HotkeyVk { get; set; }
     public List<string> Messages { get; set; } = new();
     public bool Enabled { get; set; } = true;
-    /// <summary>False = normal chat (Enter), true = allies only (Shift+Enter in Warcraft III).</summary>
+    /// <summary>False = every player sees it, enemies included (Shift+Enter in Warcraft III);
+    /// true = the player's own team only (Ctrl+Enter).</summary>
     public bool AlliesOnly { get; set; }
 
     [JsonIgnore] public bool IsUsable => Enabled && HotkeyVk != 0 && Messages.Any(m => !string.IsNullOrWhiteSpace(m));
@@ -104,6 +105,16 @@ public sealed class WarKeyProfile
     /// slots left "enabled" with no key — which reads as configured but does nothing.</summary>
     public void NormaliseSlots()
     {
+        // A hand-edited file with "inventory": null deserialises straight over these initialisers,
+        // and the null then crashes startup every single launch — unrecoverably, since the file
+        // is never rewritten. Heal first, ask questions later.
+        Inventory ??= new();
+        Skills ??= new();
+        ChatMacros ??= new();
+        CommandCard ??= new();
+        foreach (var macro in ChatMacros)
+            macro.Messages ??= new();
+
         foreach (var map in Inventory.Concat(Skills))
             if (map.FromVk == 0)
                 map.Enabled = false;

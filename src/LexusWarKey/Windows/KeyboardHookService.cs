@@ -17,6 +17,10 @@ public sealed class KeyboardHookService : IDisposable
     private readonly Func<IntPtr> _gameWindow;
     private readonly Func<bool> _moveCursorForClicks;
     private IntPtr _hook = IntPtr.Zero;
+    private long _lastCallbackTicks;
+
+    /// <summary>Which of the app's own shortcuts are physically held, so auto-repeat fires once.</summary>
+    private readonly HashSet<int> _shortcutHeld = new();
 
     public KeyboardHookService(RemapEngine engine, Func<IntPtr> gameWindow, Func<bool> moveCursorForClicks)
     {
@@ -27,6 +31,10 @@ public sealed class KeyboardHookService : IDisposable
     }
 
     public bool IsInstalled => _hook != IntPtr.Zero;
+
+    /// <summary>How long since any key at all reached the hook. Doubles as the app's only
+    /// measure of whether the player is actually typing.</summary>
+    public TimeSpan SinceLastKey => TimeSpan.FromMilliseconds(Environment.TickCount64 - _lastCallbackTicks);
 
     /// <summary>Raised when the master on/off shortcut (Ctrl+F5) is pressed.</summary>
     public event Action? ToggleRequested;
@@ -48,6 +56,25 @@ public sealed class KeyboardHookService : IDisposable
         _hook = NativeMethods.SetWindowsHookEx(NativeMethods.WH_KEYBOARD_LL, _callback, module, 0);
         if (_hook == IntPtr.Zero)
             throw new InvalidOperationException("Windows refused the keyboard hook.");
+        _lastCallbackTicks = Environment.TickCount64;
+    }
+
+    /// <summary>Windows removes a low-level hook whose callback runs too long, and it does not
+    /// clear our handle when it does — so <see cref="IsInstalled"/> keeps saying yes while nothing
+    /// arrives any more, and the app looks alive while remapping nothing. There is no API to ask,
+    /// so the only available signal is silence: if keystrokes should have been reaching us and
+    /// none have for this long, put the hook back.
+    ///
+    /// Returns true if it re-armed. A needless re-arm costs a few microseconds and our place in
+    /// the hook chain, which is why the caller only asks while the game is actually in front.</summary>
+    public bool ReArmIfSilent(TimeSpan silence)
+    {
+        if (!IsInstalled || Environment.TickCount64 - _lastCallbackTicks < silence.TotalMilliseconds)
+            return false;
+
+        Uninstall();
+        Install(); // throws if Windows refuses; the caller reports a dead remapper rather than lying
+        return true;
     }
 
     public void Uninstall()
@@ -60,6 +87,10 @@ public sealed class KeyboardHookService : IDisposable
 
     private IntPtr HookCallback(int nCode, IntPtr wParam, IntPtr lParam)
     {
+        // Proof of life for ReArmIfSilent — recorded before any filtering so even keys we
+        // ignore still count as the hook working.
+        _lastCallbackTicks = Environment.TickCount64;
+
         if (nCode < 0)
             return NativeMethods.CallNextHookEx(_hook, nCode, wParam, lParam);
 
@@ -82,15 +113,22 @@ public sealed class KeyboardHookService : IDisposable
             var alt = InputSender.IsKeyHeld(VirtualKeys.Alt);
 
             // Master toggle, handled before anything else so it works even when remapping is off.
-            if (isDown && ctrl && vk == VirtualKeys.F5)
+            // Auto-repeat must not count: holding Ctrl+F5 for half a second would otherwise
+            // toggle the app fifteen times and land on whichever state the release happened to hit.
+            if (ctrl && vk is VirtualKeys.F5 or VirtualKeys.F6)
             {
-                ToggleRequested?.Invoke();
-                return 1;
-            }
-
-            if (isDown && ctrl && vk == VirtualKeys.F6)
-            {
-                OverlayToggleRequested?.Invoke();
+                if (isDown && !_shortcutHeld.Contains(vk))
+                {
+                    _shortcutHeld.Add(vk);
+                    if (vk == VirtualKeys.F5)
+                        ToggleRequested?.Invoke();
+                    else
+                        OverlayToggleRequested?.Invoke();
+                }
+                else if (isUp)
+                {
+                    _shortcutHeld.Remove(vk);
+                }
                 return 1;
             }
 
@@ -101,6 +139,11 @@ public sealed class KeyboardHookService : IDisposable
                     ConfigKeyPressed?.Invoke(vk);
                 return IsModifier(vk) ? NativeMethods.CallNextHookEx(_hook, nCode, wParam, lParam) : 1;
             }
+
+            // Watch the player's own Enter/Escape so we know when Warcraft's chat line is
+            // open and can get out of the way. Injected keys were filtered out above, so
+            // the app's own macro typing never reaches this.
+            _engine.ObserveKey(vk, isDown);
 
             var decision = _engine.Decide(vk, isDown, ctrl, alt);
             switch (decision.Action)
@@ -168,16 +211,14 @@ public sealed class KeyboardHookService : IDisposable
             _engine.SuspendedForTyping = true;
             foreach (var line in lines)
             {
-                if (alliesOnly)
-                {
-                    InputSender.SendKey(VirtualKeys.Shift, true);
-                    InputSender.TapKey(VirtualKeys.Enter);
-                    InputSender.SendKey(VirtualKeys.Shift, false);
-                }
-                else
-                {
-                    InputSender.TapKey(VirtualKeys.Enter); // open the chat line
-                }
+                // Warcraft III addresses the chat prompt by modifier, per the manual's hotkey
+                // card: Ctrl+Enter opens it to "Allies" only, Shift+Enter to "All" players.
+                // Plain Enter is deliberately not used for either — it opens whatever channel
+                // the player last selected in the F12 chat menu, so it is not a fixed target
+                // and a macro meant for the team could land in front of the enemy.
+                InputSender.TapWithModifier(
+                    alliesOnly ? VirtualKeys.LControl : VirtualKeys.LShift,
+                    VirtualKeys.Enter);
 
                 Thread.Sleep(30);
                 InputSender.TypeText(line);

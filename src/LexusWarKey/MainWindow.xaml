@@ -226,7 +226,7 @@
                     <ScrollViewer VerticalScrollBarVisibility="Auto" Padding="0,0,6,0">
                         <StackPanel>
                             <TextBlock Style="{StaticResource Dim}" Margin="2,0,0,10"
-                                       Text="Нэг товч дарахад доорх мессежүүд дараалан илгээгдэнэ. Мөр бүр = нэг мессеж." />
+                                       Text="Нэг товч дарахад доорх мессежүүд дараалан илгээгдэнэ. Мөр бүр = нэг мессеж.&#10;&quot;Зөвхөн багтаа&quot; тэмдэглээгүй мессежийг дайсан тоглогчид ч харна." />
                             <ItemsControl ItemsSource="{Binding ChatRows}">
                                 <ItemsControl.ItemTemplate>
                                     <DataTemplate>
@@ -244,7 +244,8 @@
                                                 <StackPanel Grid.Column="1" Margin="12,0,14,0" VerticalAlignment="Top">
                                                     <Button Style="{StaticResource KeyChip}" Content="{Binding HotkeyDisplay}"
                                                             Command="{Binding CaptureHotkeyCommand}" />
-                                                    <CheckBox Content="Холбоотонд" IsChecked="{Binding AlliesOnly}" Margin="0,9,0,0" FontSize="11" />
+                                                    <CheckBox Content="Зөвхөн багтаа" IsChecked="{Binding AlliesOnly}" Margin="0,9,0,0" FontSize="11"
+                                                              ToolTip="Тэмдэглэвэл зөвхөн холбоотон харна (Ctrl+Enter).&#10;Тэмдэглээгүй бол дайсан ч харна (Shift+Enter)." />
                                                 </StackPanel>
 
                                                 <TextBox Grid.Column="2" Text="{Binding MessagesText, UpdateSourceTrigger=PropertyChanged}"

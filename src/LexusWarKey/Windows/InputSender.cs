@@ -19,6 +19,10 @@ public static class InputSender
                 ki = new NativeMethods.KEYBDINPUT
                 {
                     wVk = (ushort)vk,
+                    // A real keyboard reports a scan code alongside the virtual key. Games that
+                    // read input through DirectInput look at the scan code, so leaving it zero
+                    // makes a synthesised key invisible to them even though Windows accepts it.
+                    wScan = (ushort)NativeMethods.MapVirtualKey((uint)vk, NativeMethods.MAPVK_VK_TO_VSC),
                     dwFlags = keyDown ? 0 : NativeMethods.KEYEVENTF_KEYUP,
                     dwExtraInfo = Signature,
                 },
@@ -31,6 +35,22 @@ public static class InputSender
     {
         SendKey(vk, true);
         SendKey(vk, false);
+    }
+
+    /// <summary>Taps <paramref name="vk"/> while <paramref name="modifierVk"/> is held, and
+    /// guarantees the modifier is released even if the tap throws. A modifier left logically
+    /// down is worse than a missed keystroke: every later keypress reaches the game shifted.</summary>
+    public static void TapWithModifier(int modifierVk, int vk)
+    {
+        SendKey(modifierVk, true);
+        try
+        {
+            TapKey(vk);
+        }
+        finally
+        {
+            SendKey(modifierVk, false);
+        }
     }
 
     /// <summary>Types a string as Unicode characters, so it does not depend on keyboard layout.</summary>

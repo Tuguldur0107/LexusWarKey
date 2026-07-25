@@ -69,20 +69,53 @@ public sealed class UpdateInstaller
             }
         }
 
-        // A truncated download must never be swapped in.
+        // A truncated download must never be swapped in. The expected size comes from the API
+        // response, not from the download itself, so an absent length is suspicious in its own
+        // right rather than a reason to skip the check.
         var downloaded = new FileInfo(target).Length;
-        if (total > 0 && downloaded != total)
+        var expected = total > 0 ? total : update.SizeBytes;
+        if (expected <= 0 || downloaded != expected)
         {
             File.Delete(target);
-            throw new InvalidOperationException($"Download incomplete ({downloaded} of {total} bytes).");
+            throw new InvalidOperationException($"Download incomplete ({downloaded} of {expected} bytes).");
         }
 
+        VerifyHash(target, update.Sha256);
         return target;
     }
 
+    /// <summary>Refuses anything whose hash the release did not vouch for. Deleting the staged
+    /// file on mismatch matters as much as the throw: leaving a rejected executable next to the
+    /// real one invites it being run by hand later.</summary>
+    private static void VerifyHash(string path, string? expectedHex)
+    {
+        if (string.IsNullOrWhiteSpace(expectedHex))
+        {
+            File.Delete(path);
+            throw new InvalidOperationException(
+                "This release publishes no SHA256, so the download cannot be verified. " +
+                "Install it by hand from the release page if you trust it.");
+        }
+
+        string actual;
+        using (var stream = File.OpenRead(path))
+            actual = Convert.ToHexString(System.Security.Cryptography.SHA256.HashData(stream));
+
+        if (!actual.Equals(expectedHex, StringComparison.OrdinalIgnoreCase))
+        {
+            File.Delete(path);
+            throw new InvalidOperationException(
+                $"The download does not match the hash GitHub published for it (expected {expectedHex}, got {actual.ToLowerInvariant()}).");
+        }
+    }
+
     /// <summary>Swaps the staged file in and restarts. Throws before touching anything if the
-    /// staged file is missing, so a failed download can never leave the app broken.</summary>
-    public void ApplyAndRestart(string stagedPath)
+    /// staged file is missing, so a failed download can never leave the app broken.
+    ///
+    /// <paramref name="beforeRestart"/> runs only once the swap has actually succeeded. The caller
+    /// must not shut itself down any earlier: every move below can throw, and a caller that has
+    /// already released its keyboard hook would then sit there looking alive but doing nothing.</summary>
+    public void ApplyAndRestart(string stagedPath, Action? beforeRestart = null)
     {
         if (!File.Exists(stagedPath))
             throw new FileNotFoundException("The downloaded update is missing.", stagedPath);
@@ -104,6 +137,7 @@ public sealed class UpdateInstaller
             throw;
         }
 
+        beforeRestart?.Invoke();
         Process.Start(new ProcessStartInfo(current) { UseShellExecute = true });
         Environment.Exit(0);
     }

@@ -42,8 +42,56 @@ public sealed class RemapEngine
         _gameFocused = gameFocused;
     }
 
-    /// <summary>Set while the user is typing in chat, so macros and remaps do not fire mid-message.</summary>
+    /// <summary>Set while the app itself is typing a macro, so its own keystrokes are not remapped.</summary>
     public bool SuspendedForTyping { get; set; }
+
+    /// <summary>True while Warcraft's own chat line is open.
+    ///
+    /// The game offers no way to ask, so it is inferred from the keys the player physically
+    /// presses. It has to be tracked: with chat open a remapped Space is swallowed and re-sent
+    /// as NumPad7, so "gg wp" is typed as "gg7wp", and a position-bound letter casts the ability
+    /// instead of appearing in the message.
+    ///
+    /// Being wrong in the "open" direction silently disables everything, so the tracker only ever
+    /// latches on keys the game actually received, and clears itself the moment the game is not
+    /// focused. <see cref="ChatOpenChanged"/> lets the UI say so out loud rather than looking dead.</summary>
+    public bool ChatOpen { get; private set; }
+
+    public event Action<bool>? ChatOpenChanged;
+
+    /// <summary>Feeds one physical keystroke to the chat-line tracker. Call before <see cref="Decide"/>:
+    /// Enter opens the line, the next Enter sends and closes it, Escape closes it without sending.
+    /// Injected keys must never reach this — the caller filters them out already.</summary>
+    public void ObserveKey(int vk, bool isKeyDown)
+    {
+        // Outside the game there is no chat line to be open, and this doubles as the resync
+        // for alt-tab, clicking away, and anything else that closed it behind our back.
+        if (!_gameFocused())
+        {
+            SetChatOpen(false);
+            return;
+        }
+
+        if (!isKeyDown || SuspendedForTyping)
+            return;
+
+        if (vk == VirtualKeys.Enter)
+            SetChatOpen(!ChatOpen);
+        else if (vk == VirtualKeys.Escape)
+            SetChatOpen(false);
+    }
+
+    /// <summary>Forces the tracker shut. The app calls this whenever it cannot be sure any more —
+    /// erring towards "closed" costs one garbled message, erring towards "open" costs every key.</summary>
+    public void ResetChatState() => SetChatOpen(false);
+
+    private void SetChatOpen(bool value)
+    {
+        if (ChatOpen == value)
+            return;
+        ChatOpen = value;
+        ChatOpenChanged?.Invoke(value);
+    }
 
     public RemapDecision Decide(int vk, bool isKeyDown, bool ctrlHeld, bool altHeld)
     {
@@ -51,6 +99,16 @@ public sealed class RemapEngine
         if (!profile.Enabled || SuspendedForTyping)
             return RemapDecision.PassThrough;
         if (profile.OnlyWhenGameFocused && !_gameFocused())
+            return RemapDecision.PassThrough;
+
+        // Enter and Escape drive the chat line itself. Remapping them would break the tracker
+        // above and leave the player unable to close a chat box they cannot type into.
+        if (vk is VirtualKeys.Enter or VirtualKeys.Escape)
+            return RemapDecision.PassThrough;
+
+        // Chat is open: the player is writing to other humans, so every key must arrive
+        // as itself. This is the whole reason the tracker exists.
+        if (ChatOpen)
             return RemapDecision.PassThrough;
 
         // Chat macros fire once, on key-down only, and never with a modifier held
