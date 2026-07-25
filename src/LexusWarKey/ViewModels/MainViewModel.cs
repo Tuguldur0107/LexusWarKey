@@ -384,9 +384,24 @@ public sealed partial class MainViewModel : ObservableObject
         }
 
         _overlaySession.Reset();
-        _overlay ??= new OverlayWindow();
+        if (_overlay is null)
+        {
+            _overlay = new OverlayWindow();
+            _overlay.SlotClicked += (group, index) =>
+            {
+                _overlaySession.SelectSlot(group, index);
+                RenderOverlay();
+            };
+            _overlay.Moved += (left, top) =>
+            {
+                _profile.OverlayLeft = left;
+                _profile.OverlayTop = top;
+                Save();
+            };
+        }
         _hook.ConfigMode = true;
         RenderOverlay();
+        _overlay.PlaceAt(_profile.OverlayLeft, _profile.OverlayTop);
     }
 
     private void CloseOverlay()
@@ -410,20 +425,32 @@ public sealed partial class MainViewModel : ObservableObject
         if (_overlay is null)
             return;
 
-        var slots = _profile.Inventory.Select((m, i) => new OverlaySlot(
-            $"{i + 1}.",
-            $"Нүд {i + 1}",
-            m.FromVk == 0 ? "—" : VirtualKeys.NameOf(m.FromVk),
-            i == _overlaySession.SelectedIndex ? "#3A2A24" : "#00000000")).ToList();
+        _overlay.ShowSlots(
+            BuildSlots(SlotGroup.Inventory, _profile.Inventory),
+            BuildSlots(SlotGroup.Skill, _profile.Skills),
+            _overlaySession.Prompt);
+        RefreshRowsFromProfile();
+    }
 
-        _overlay.Show(slots, _overlaySession.Prompt);
+    private List<OverlaySlot> BuildSlots(SlotGroup group, IReadOnlyList<KeyMap> maps)
+    {
+        var selected = _overlaySession.Step == OverlayStep.WaitingForKey && _overlaySession.SelectedGroup == group
+            ? _overlaySession.SelectedIndex
+            : -1;
+
+        return maps.Select((m, i) => new OverlaySlot(
+            group,
+            i,
+            m.FromVk == 0 ? "—" : VirtualKeys.NameOf(m.FromVk),
+            Background: i == selected ? "#4A2E22" : "#181615",
+            Border: i == selected ? "#D97757" : "#3A3632")).ToList();
     }
 
     // ---- rows ----
 
     private void RefreshRowsFromProfile()
     {
-        foreach (var row in InventoryRows)
+        foreach (var row in InventoryRows.Concat(SkillRows))
             row.NotifyModelChanged();
     }
 

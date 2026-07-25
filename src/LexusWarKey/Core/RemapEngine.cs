@@ -92,11 +92,13 @@ public sealed class RemapEngine
         return map is null ? RemapDecision.PassThrough : new RemapDecision(RemapAction.SendKey, map.ToVk);
     }
 
-    /// <summary>Duplicate source keys would make behaviour undefined; the UI shows these.</summary>
+    /// <summary>Duplicate source keys would make behaviour undefined; the UI shows these.
+    /// Uses ClaimsKey rather than IsUsable so position-based skills — which have no target
+    /// key — are still checked against everything else.</summary>
     public static IReadOnlyList<int> FindConflicts(WarKeyProfile profile)
     {
         var sources = profile.Inventory.Concat(profile.Skills)
-            .Where(m => m.IsUsable).Select(m => m.FromVk)
+            .Where(m => m.ClaimsKey).Select(m => m.FromVk)
             .Concat(profile.ChatMacros.Where(m => m.IsUsable).Select(m => m.HotkeyVk));
 
         return sources.GroupBy(vk => vk).Where(g => g.Count() > 1).Select(g => g.Key).ToList();

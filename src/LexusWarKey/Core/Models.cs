@@ -10,7 +10,12 @@ public sealed class KeyMap
     public int ToVk { get; set; }
     public bool Enabled { get; set; } = true;
 
+    /// <summary>Ready to remap one key onto another.</summary>
     [JsonIgnore] public bool IsUsable => Enabled && FromVk != 0 && ToVk != 0 && FromVk != ToVk;
+
+    /// <summary>The user has claimed this key, whether or not it currently does anything.
+    /// Position-based skills have no target key, so conflict checks must use this.</summary>
+    [JsonIgnore] public bool ClaimsKey => Enabled && FromVk != 0;
 }
 
 /// <summary>A hotkey that types one or more chat lines, in order, on a single press.</summary>
@@ -46,6 +51,10 @@ public sealed class WarKeyProfile
     /// moves. Turn on only if the game ignores posted messages — then the cursor is moved and
     /// put straight back, which is briefly visible.</summary>
     public bool MoveCursorForClicks { get; set; }
+
+    /// <summary>Where the user dragged the in-game overlay to; null = default corner.</summary>
+    public double? OverlayLeft { get; set; }
+    public double? OverlayTop { get; set; }
 
     /// <summary>Remapping only acts while Warcraft III has focus — never in other programs.</summary>
     public bool OnlyWhenGameFocused { get; set; } = true;
