@@ -153,6 +153,10 @@ public sealed class WarKeyProfile
         }
         ChatMacros = mergedMacros;
 
+        // Hand-dragged ring positions carry a few pixels of tremor each; the card they were
+        // aimed at is a perfectly even grid. Snap once on load so they stay tidy forever.
+        CommandCard.TidyOverrides();
+
         foreach (var map in Inventory.Concat(Skills))
             if (map.FromVk == 0)
                 map.Enabled = false;

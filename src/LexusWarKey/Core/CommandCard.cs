@@ -115,4 +115,64 @@ public sealed class CommandCard
     {
         Overrides = points.Select(p => (ScreenPoint?)p).ToList();
     }
+
+    /// <summary>Snaps hand-dragged positions onto the perfectly even grid they were aiming at.
+    ///
+    /// The game's card is uniform — equal column pitch, equal row pitch — but a hand can't
+    /// place twelve rings to the pixel, so saved positions carry a few pixels of jitter each
+    /// and the whole thing looks ragged. This finds the evenly-spaced grid closest to the
+    /// points (least squares on the column and row means) and returns every slot on it. The
+    /// result is what the user meant, minus the hand tremor.</summary>
+    public static List<ScreenPoint> FitRegularGrid(IReadOnlyList<ScreenPoint> points)
+    {
+        if (points.Count != Slots)
+            throw new ArgumentException($"Expected {Slots} points, got {points.Count}.", nameof(points));
+
+        var columnMeans = new double[Columns];
+        for (var c = 0; c < Columns; c++)
+            columnMeans[c] = Enumerable.Range(0, Rows).Average(r => (double)points[r * Columns + c].X);
+
+        var rowMeans = new double[Rows];
+        for (var r = 0; r < Rows; r++)
+            rowMeans[r] = Enumerable.Range(0, Columns).Average(c => (double)points[r * Columns + c].Y);
+
+        var (x0, stepX) = FitLine(columnMeans);
+        var (y0, stepY) = FitLine(rowMeans);
+
+        var snapped = new List<ScreenPoint>(Slots);
+        for (var slot = 0; slot < Slots; slot++)
+        {
+            var col = slot % Columns;
+            var row = slot / Columns;
+            snapped.Add(new ScreenPoint(
+                (int)Math.Round(x0 + stepX * col),
+                (int)Math.Round(y0 + stepY * row)));
+        }
+        return snapped;
+    }
+
+    /// <summary>Least-squares line through equally spaced samples: intercept and step.</summary>
+    private static (double Intercept, double Step) FitLine(double[] means)
+    {
+        var n = means.Length;
+        var centre = (n - 1) / 2.0;
+        double numerator = 0, denominator = 0;
+        for (var i = 0; i < n; i++)
+        {
+            numerator += (i - centre) * means[i];
+            denominator += (i - centre) * (i - centre);
+        }
+        var step = numerator / denominator;
+        var intercept = means.Average() - step * centre;
+        return (intercept, step);
+    }
+
+    /// <summary>Applies <see cref="FitRegularGrid"/> to stored overrides, when they are a full
+    /// set. Runs on every profile load, so jitter saved by an older build tidies itself.</summary>
+    public void TidyOverrides()
+    {
+        if (Overrides is null || Overrides.Count != Slots || Overrides.Any(p => p is null))
+            return;
+        SetOverrides(FitRegularGrid(Overrides.Select(p => p!).ToList()));
+    }
 }

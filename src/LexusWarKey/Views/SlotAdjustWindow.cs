@@ -157,6 +157,13 @@ public sealed class SlotAdjustWindow : Window
             SavePositions();
         };
 
+        var tidy = ToolbarButton("▦ Цэгцлэх", "#2E4A5C");
+        tidy.MouseLeftButtonDown += (_, e) =>
+        {
+            e.Handled = true;
+            TidyRings();
+        };
+
         var cancel = ToolbarButton("✕ Болих", "#5C2E2E");
         cancel.MouseLeftButtonDown += (_, e) =>
         {
@@ -177,14 +184,15 @@ public sealed class SlotAdjustWindow : Window
                 {
                     new TextBlock
                     {
-                        Text = "Цагираг бүр = тэр нүдийг чухам хаана дарахыг заана. Буруу байвал чирээд зөв товчин дээр нь тавь.",
+                        Text = "Цагираг бүр = тэр нүдийг чухам хаана дарахыг заана. Буруу байвал чирээд зөв товчин дээр нь тавь. " +
+                               "▦ Цэгцлэх = бүгдийг жигд тор болгоно.",
                         Foreground = Brushes.White,
                         FontSize = 12,
                         Margin = new Thickness(0, 0, 0, 8),
-                        MaxWidth = 420,
+                        MaxWidth = 460,
                         TextWrapping = TextWrapping.Wrap,
                     },
-                    new StackPanel { Orientation = Orientation.Horizontal, Children = { save, cancel } },
+                    new StackPanel { Orientation = Orientation.Horizontal, Children = { save, tidy, cancel } },
                 },
             },
         };
@@ -218,7 +226,8 @@ public sealed class SlotAdjustWindow : Window
         };
     }
 
-    private void SavePositions()
+    /// <summary>Current ring centres as physical screen points, or null if any ring is missing.</summary>
+    private List<ScreenPoint>? ReadRingPositions()
     {
         var toDevice = PresentationSource.FromVisual(this)?.CompositionTarget?.TransformToDevice
                        ?? Matrix.Identity;
@@ -227,10 +236,7 @@ public sealed class SlotAdjustWindow : Window
         for (var slot = 0; slot < CommandCard.Slots; slot++)
         {
             if (_rings[slot] is not { } ring)
-            {
-                Close();
-                return; // a slot without a ring means the card lost calibration mid-edit — bail out
-            }
+                return null; // the card lost calibration mid-edit
 
             var centreDip = new Point(Canvas.GetLeft(ring) + Ring / 2, Canvas.GetTop(ring) + Ring / 2);
             var device = toDevice.Transform(centreDip);
@@ -238,8 +244,40 @@ public sealed class SlotAdjustWindow : Window
                 (int)Math.Round(device.X) + _deviceLeft,
                 (int)Math.Round(device.Y) + _deviceTop));
         }
+        return points;
+    }
 
-        _card.SetOverrides(points);
+    /// <summary>Snaps every ring onto the even grid the hand placement was aiming at, live —
+    /// so the user sees the tidy result before deciding to save it.</summary>
+    private void TidyRings()
+    {
+        if (ReadRingPositions() is not { } points)
+            return;
+
+        var fromDevice = PresentationSource.FromVisual(this)?.CompositionTarget?.TransformFromDevice
+                         ?? Matrix.Identity;
+        var snapped = CommandCard.FitRegularGrid(points);
+        for (var slot = 0; slot < CommandCard.Slots; slot++)
+        {
+            if (_rings[slot] is not { } ring)
+                continue;
+            var dip = fromDevice.Transform(new Point(snapped[slot].X - _deviceLeft, snapped[slot].Y - _deviceTop));
+            Canvas.SetLeft(ring, dip.X - Ring / 2);
+            Canvas.SetTop(ring, dip.Y - Ring / 2);
+        }
+    }
+
+    private void SavePositions()
+    {
+        if (ReadRingPositions() is not { } points)
+        {
+            Close();
+            return;
+        }
+
+        // Saved positions are always the fitted grid, never the raw hand placement: the card
+        // is uniform, so the jitter was never intentional and only makes the rings look wrong.
+        _card.SetOverrides(CommandCard.FitRegularGrid(points));
         _onSaved();
         Close();
     }

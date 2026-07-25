@@ -40,17 +40,19 @@ public class SlotOverrideTests
     [Fact]
     public void Overrides_survive_a_profile_round_trip()
     {
+        // Grid-shaped positions, because loading also tidies: NormaliseSlots snaps overrides
+        // onto the even grid they describe, and an already-even grid must come through intact.
         var profile = WarKeyProfile.CreateDefault();
         profile.CommandCard = Calibrated();
         profile.CommandCard.SetOverrides(Enumerable.Range(0, CommandCard.Slots)
-            .Select(i => new ScreenPoint(100 * i, 50 * i)).ToList());
+            .Select(i => new ScreenPoint(1000 + i % 4 * 100, 800 + i / 4 * 80)).ToList());
 
         var options = new JsonSerializerOptions { PropertyNamingPolicy = JsonNamingPolicy.CamelCase };
         var restored = JsonSerializer.Deserialize<WarKeyProfile>(
             JsonSerializer.Serialize(profile, options), options)!;
         restored.NormaliseSlots();
 
-        Assert.Equal(new ScreenPoint(1100, 550), restored.CommandCard.PointFor(11));
+        Assert.Equal(new ScreenPoint(1300, 960), restored.CommandCard.PointFor(11));
     }
 
     [Fact]
