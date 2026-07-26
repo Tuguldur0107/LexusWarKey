@@ -94,8 +94,8 @@ public class ProfileResilienceTests : IDisposable
     public void A_saved_profile_round_trips_with_its_bindings_intact()
     {
         var profile = WarKeyProfile.CreateDefault();
-        profile.Skills[2].FromVk = 'R';
-        profile.Skills[2].Enabled = true;
+        profile.Skills[9].FromVk = 'R';
+        profile.Skills[9].Enabled = true;
         profile.ChatMacros[0].AlliesOnly = true;
         profile.CommandCard = new CommandCard
         {
@@ -106,7 +106,7 @@ public class ProfileResilienceTests : IDisposable
         store.Save(profile);
         var loaded = store.Load();
 
-        Assert.Equal('R', loaded.Skills[2].FromVk);
+        Assert.Equal('R', loaded.Skills[9].FromVk);
         Assert.True(loaded.ChatMacros[0].AlliesOnly);
         Assert.True(loaded.CommandCard.IsCalibrated);
         Assert.Null(store.LoadWarning);

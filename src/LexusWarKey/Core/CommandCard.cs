@@ -22,6 +22,14 @@ public sealed class CommandCard
     public const int Rows = 3;
     public const int Slots = Columns * Rows;
 
+    /// <summary>The card's top row is Move / Stop / Hold / Attack — nobody rebinds those, and
+    /// Garena's own WarKey has never shown them. So slots 1-4 are hidden and only 5-12 can be
+    /// bound. The GEOMETRY stays a full 4x3: the corners and every stored position still refer
+    /// to the whole card, so hiding a row moves nothing.</summary>
+    public const int FirstBindableSlot = Columns;          // index 4 == slot 5
+    public const int BindableSlots = Slots - FirstBindableSlot;
+    public const int BindableRows = Rows - 1;
+
     /// <summary>Centre of slot 1 — the top-left button (Move, in an unmodified game).</summary>
     public int TopLeftX { get; set; }
     public int TopLeftY { get; set; }
@@ -190,6 +198,19 @@ public sealed class CommandCard
         Overrides = points.Select(p => (ScreenPoint?)p).ToList();
     }
 
+    /// <summary>Writes hand-placed positions for the bindable slots only, leaving the hidden
+    /// top row to interpolation. Nothing the user cannot see gets pinned by their dragging.</summary>
+    public void SetBindableOverrides(IReadOnlyList<ScreenPoint> points)
+    {
+        if (points.Count != BindableSlots)
+            throw new ArgumentException($"Expected {BindableSlots} points, got {points.Count}.", nameof(points));
+
+        var all = new List<ScreenPoint?>(new ScreenPoint?[Slots]);
+        for (var i = 0; i < points.Count; i++)
+            all[FirstBindableSlot + i] = points[i];
+        Overrides = all;
+    }
+
     /// <summary>Snaps hand-dragged positions onto the perfectly even grid they were aiming at.
     ///
     /// The game's card is uniform — equal column pitch, equal row pitch — but a hand can't
@@ -197,24 +218,29 @@ public sealed class CommandCard
     /// and the whole thing looks ragged. This finds the evenly-spaced grid closest to the
     /// points (least squares on the column and row means) and returns every slot on it. The
     /// result is what the user meant, minus the hand tremor.</summary>
-    public static List<ScreenPoint> FitRegularGrid(IReadOnlyList<ScreenPoint> points)
+    public static List<ScreenPoint> FitRegularGrid(IReadOnlyList<ScreenPoint> points) =>
+        FitRegularGrid(points, Rows);
+
+    /// <summary>Overload for fitting a sub-grid — the visible rings are the bottom two rows.</summary>
+    public static List<ScreenPoint> FitRegularGrid(IReadOnlyList<ScreenPoint> points, int rows)
     {
-        if (points.Count != Slots)
-            throw new ArgumentException($"Expected {Slots} points, got {points.Count}.", nameof(points));
+        var expected = Columns * rows;
+        if (points.Count != expected)
+            throw new ArgumentException($"Expected {expected} points, got {points.Count}.", nameof(points));
 
         var columnMeans = new double[Columns];
         for (var c = 0; c < Columns; c++)
-            columnMeans[c] = Enumerable.Range(0, Rows).Average(r => (double)points[r * Columns + c].X);
+            columnMeans[c] = Enumerable.Range(0, rows).Average(r => (double)points[r * Columns + c].X);
 
-        var rowMeans = new double[Rows];
-        for (var r = 0; r < Rows; r++)
+        var rowMeans = new double[rows];
+        for (var r = 0; r < rows; r++)
             rowMeans[r] = Enumerable.Range(0, Columns).Average(c => (double)points[r * Columns + c].Y);
 
         var (x0, stepX) = FitLine(columnMeans);
         var (y0, stepY) = FitLine(rowMeans);
 
-        var snapped = new List<ScreenPoint>(Slots);
-        for (var slot = 0; slot < Slots; slot++)
+        var snapped = new List<ScreenPoint>(expected);
+        for (var slot = 0; slot < expected; slot++)
         {
             var col = slot % Columns;
             var row = slot / Columns;
@@ -245,8 +271,18 @@ public sealed class CommandCard
     /// set. Runs on every profile load, so jitter saved by an older build tidies itself.</summary>
     public void TidyOverrides()
     {
-        if (Overrides is null || Overrides.Count != Slots || Overrides.Any(p => p is null))
+        if (Overrides is null || Overrides.Count != Slots)
             return;
-        SetOverrides(FitRegularGrid(Overrides.Select(p => p!).ToList()));
+
+        // Only the bindable rows are ever hand-placed now; older profiles pinned all twelve.
+        if (Overrides.All(p => p is not null))
+        {
+            SetOverrides(FitRegularGrid(Overrides.Select(p => p!).ToList()));
+            return;
+        }
+
+        var bindable = Overrides.Skip(FirstBindableSlot).ToList();
+        if (bindable.Count == BindableSlots && bindable.All(p => p is not null))
+            SetBindableOverrides(FitRegularGrid(bindable.Select(p => p!).ToList(), BindableRows));
     }
 }

@@ -161,6 +161,16 @@ public sealed class WarKeyProfile
 
         SkillsUsePosition = true;
 
+        // The card's top row is Move/Stop/Hold/Attack and is no longer shown, so a binding
+        // left there could never be seen or removed again. Clear it rather than leave a key
+        // silently claimed by a cell that does not exist in the UI.
+        for (var i = 0; i < CommandCard.FirstBindableSlot && i < Skills.Count; i++)
+        {
+            Skills[i].FromVk = 0;
+            Skills[i].ToVk = 0;
+            Skills[i].Enabled = false;
+        }
+
         // Hand-dragged ring positions carry a few pixels of tremor each; the card they were
         // aimed at is a perfectly even grid. Snap once on load so they stay tidy forever.
         CommandCard.TidyOverrides();

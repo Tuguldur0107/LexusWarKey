@@ -24,9 +24,32 @@ public class MigrationTests
         profile.NormaliseSlots();
 
         Assert.Equal(12, profile.Skills.Count);
-        Assert.Equal('A', profile.Skills[0].FromVk);   // old top row stays the top row
         Assert.Equal('Q', profile.Skills[11].FromVk);  // old bottom-right is the real slot 12
         Assert.Equal(0, profile.Skills[7].FromVk);     // the middle row starts empty
+
+        // 'A' was on the real Move button, which is no longer shown. Leaving it bound would
+        // claim the key from a cell the user can neither see nor clear.
+        Assert.Equal(0, profile.Skills[0].FromVk);
+        Assert.False(profile.Skills[0].Enabled);
+    }
+
+    [Fact]
+    public void Bindings_on_the_hidden_top_row_are_cleared_on_load()
+    {
+        var profile = WarKeyProfile.CreateDefault();
+        for (var i = 0; i < CommandCard.FirstBindableSlot; i++)
+        {
+            profile.Skills[i].FromVk = 'A' + i;
+            profile.Skills[i].Enabled = true;
+        }
+        profile.Skills[CommandCard.FirstBindableSlot].FromVk = 'Q';
+        profile.Skills[CommandCard.FirstBindableSlot].Enabled = true;
+
+        profile.NormaliseSlots();
+
+        Assert.All(profile.Skills.Take(CommandCard.FirstBindableSlot),
+            m => Assert.False(m.ClaimsKey));
+        Assert.Equal('Q', profile.Skills[CommandCard.FirstBindableSlot].FromVk); // slot 5 untouched
     }
 
     [Fact]

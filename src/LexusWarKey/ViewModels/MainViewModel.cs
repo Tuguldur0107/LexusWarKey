@@ -142,6 +142,10 @@ public sealed partial class MainViewModel : ObservableObject
     [ObservableProperty] private string _statusText = "";
     [ObservableProperty] private string _statusDetail = "";
     [ObservableProperty] private bool _statusIsLive;
+
+    /// <summary>Whether the status pill has anything worth showing. Armed-and-waiting and
+    /// armed-and-playing are the normal states and say nothing the user did not already know.</summary>
+    [ObservableProperty] private bool _hasStatus;
     [ObservableProperty] private string _problemText = "";
     [ObservableProperty] private bool _hasProblems;
     [ObservableProperty] private bool _isCapturing;
@@ -280,8 +284,13 @@ public sealed partial class MainViewModel : ObservableObject
 
         InventoryRows = new ObservableCollection<KeyMapRow>(
             _profile.Inventory.Select((m, i) => new KeyMapRow($"{i + 1}", m, Save, BeginKeyCapture)));
+        // Slots 1-4 are Move/Stop/Hold/Attack: never rebound, never shown. The label keeps the
+        // real card number so a ring marked 7 is the cell marked 7.
         SkillRows = new ObservableCollection<KeyMapRow>(
-            _profile.Skills.Select((m, i) => new KeyMapRow($"{i + 1}", m, Save, BeginKeyCapture)));
+            _profile.Skills
+                .Select((m, i) => (map: m, index: i))
+                .Where(x => x.index >= CommandCard.FirstBindableSlot)
+                .Select(x => new KeyMapRow($"{x.index + 1}", x.map, Save, BeginKeyCapture)));
         ChatRows = new ObservableCollection<ChatMacroRow>(
             _profile.ChatMacros.Select(m => new ChatMacroRow(m, Save, BeginChatCapture)));
 
@@ -515,8 +524,10 @@ public sealed partial class MainViewModel : ObservableObject
     {
         var card = _profile.CommandCard;
         IsCalibrated = card.IsCalibrated;
+        // Only the state that needs doing something about is worth a line on the Keys tab.
+        // "Linked" is where the user lives; Тохиргоо carries the detail and the undo.
         CalibrationText = card.IsCalibrated
-            ? "✓ Командын карт холбогдсон — чадварын товч ажиллана."
+            ? ""
             : "Командын карт холбоогүй. Тоглоом дотроо Ctrl + F6 дараад самбарын торыг тоглоомын карт дээр давхарлаж «Холбох» дар.";
     }
 
@@ -640,10 +651,14 @@ public sealed partial class MainViewModel : ObservableObject
             _profile.OverlayCellHeight = cellH;
             Save();
         };
-        _overlay.LinkRequested += (topLeft, bottomRight) =>
+        _overlay.LinkRequested += (visibleTopLeft, bottomRight) =>
         {
-            // The user has laid the panel's 4x3 grid over the game's own card, so the first
-            // and last cell centres ARE the calibration — no corner clicking, no prompts.
+            // The panel shows the card's bottom TWO rows, so its corners are slot 5 and slot
+            // 12. The stored card is still a full 4x3, so extrapolate the hidden top row from
+            // the row pitch — that keeps every visible slot exactly where the user put it.
+            var rowPitch = bottomRight.Y - visibleTopLeft.Y;   // slot 5 to slot 12 = one row
+            var topLeft = new ScreenPoint(visibleTopLeft.X, visibleTopLeft.Y - rowPitch);
+
             var error = CommandCard.Validate(topLeft.X, topLeft.Y, bottomRight.X, bottomRight.Y);
             if (error is not null)
             {
@@ -753,12 +768,18 @@ public sealed partial class MainViewModel : ObservableObject
 
         // Monochrome on black: the selected slot is marked with a solid white outline
         // rather than a colour, so the panel stays readable over any game background.
-        return maps.Select((m, i) => new OverlaySlot(
-            group,
-            i,
-            m.FromVk == 0 ? "—" : VirtualKeys.NameOf(m.FromVk),
-            Background: i == selected ? "#40FFFFFF" : "#66000000",
-            Border: i == selected ? "#FFFFFFFF" : "#4DFFFFFF")).ToList();
+        // The card hides its top row; the index carried is still the model's, so clicking a
+        // cell binds the slot its number says.
+        var first = group == SlotGroup.Skill ? CommandCard.FirstBindableSlot : 0;
+        return maps.Select((m, i) => (map: m, index: i))
+            .Where(x => x.index >= first)
+            .Select(x => new OverlaySlot(
+                group,
+                x.index,
+                x.map.FromVk == 0 ? "—" : VirtualKeys.NameOf(x.map.FromVk),
+                Background: x.index == selected ? "#40FFFFFF" : "#66000000",
+                Border: x.index == selected ? "#FFFFFFFF" : "#4DFFFFFF"))
+            .ToList();
     }
 
     // ---- rows ----
@@ -894,28 +915,25 @@ public sealed partial class MainViewModel : ObservableObject
         if (!IsEnabled)
         {
             StatusText = "Унтраалттай";
-            StatusDetail = "Дээрх 'Идэвхтэй'-г тэмдэглэж асаана";
+            StatusDetail = "Тохиргоо таб дээрээс асаана";
         }
         else if (focused && _engine.ChatOpen)
         {
             StatusText = "Чат нээлттэй";
-            StatusDetail = "Товч солилт түр зогссон — Enter дарж илгээнэ";
+            StatusDetail = "Товч солилт түр зогссон";
         }
-        else if (focused)
+        else if (!OnlyWhenGameFocused)
         {
-            StatusText = "Идэвхтэй";
-            StatusDetail = "Warcraft III фокуст байна";
-        }
-        else if (OnlyWhenGameFocused)
-        {
-            StatusText = "Хүлээж байна";
-            StatusDetail = $"Warcraft III эхлэхийг хүлээж байна ({_watcher.ForegroundProcessName() ?? "?"})";
+            StatusText = "Бүх программд";
+            StatusDetail = "«Зөвхөн Warcraft дотор» унтраалттай";
         }
         else
         {
-            StatusText = "Идэвхтэй";
-            StatusDetail = "Бүх программд — болгоомжтой";
+            // Armed and waiting, or armed and playing. Neither needs saying.
+            StatusText = "";
+            StatusDetail = "";
         }
+        HasStatus = StatusText.Length > 0;
     }
 
     public void Shutdown()

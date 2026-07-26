@@ -50,9 +50,10 @@ public partial class OverlayWindow : Window
     public event Action<double, double>? Resized;
 
     /// <summary>Raised when the user presses "Холбох" with the panel laid over the game's
-    /// command card: carries the screen centres of the first and last card cells, which is
-    /// exactly the two-corner calibration — captured from where the user aligned the grid,
-    /// with no corner-clicking ceremony.</summary>
+    /// command card: carries the screen centres of the first and last VISIBLE cells — slot 5
+    /// and slot 12 — which is the two-corner calibration, captured from where the user aligned
+    /// the grid rather than from any corner-clicking ceremony. The caller extrapolates the
+    /// hidden top row so the stored card stays a full 4x3 and nothing moves.</summary>
     public event Action<ScreenPoint, ScreenPoint>? LinkRequested;
 
     /// <summary>Raised when the user asks to SEE where the twelve slots will click.</summary>
@@ -110,13 +111,13 @@ public partial class OverlayWindow : Window
         InventoryList.Width = _cellWidth * 2;
         InventoryList.Height = _cellHeight * 3;
         SkillList.Width = _cellWidth * CommandCard.Columns;
-        SkillList.Height = _cellHeight * CommandCard.Rows;
+        SkillList.Height = _cellHeight * CommandCard.BindableRows;
     }
 
     private void OnResizeDelta(object sender, DragDeltaEventArgs e)
     {
         _cellWidth = Math.Clamp(_cellWidth + e.HorizontalChange / CommandCard.Columns, 30, 240);
-        _cellHeight = Math.Clamp(_cellHeight + e.VerticalChange / CommandCard.Rows, 24, 200);
+        _cellHeight = Math.Clamp(_cellHeight + e.VerticalChange / CommandCard.BindableRows, 24, 200);
         ApplyCellSize();
     }
 
@@ -137,7 +138,7 @@ public partial class OverlayWindow : Window
     {
         e.Handled = true;
         var first = CellCentreOnScreen(0);
-        var last = CellCentreOnScreen(CommandCard.Slots - 1);
+        var last = CellCentreOnScreen(CommandCard.BindableSlots - 1);
         if (first is not null && last is not null)
             LinkRequested?.Invoke(first, last);
     }

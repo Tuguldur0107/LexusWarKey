@@ -88,7 +88,9 @@ public sealed class SlotAdjustWindow : Window
         var fromDevice = PresentationSource.FromVisual(this)?.CompositionTarget?.TransformFromDevice
                          ?? Matrix.Identity;
 
-        for (var slot = 0; slot < CommandCard.Slots; slot++)
+        // Only the bindable slots get a ring: the top row is Move/Stop/Hold/Attack and is not
+        // shown anywhere else either.
+        for (var slot = CommandCard.FirstBindableSlot; slot < CommandCard.Slots; slot++)
         {
             if (_card.PointFor(slot) is not { } p)
                 continue;
@@ -115,7 +117,7 @@ public sealed class SlotAdjustWindow : Window
         });
         ring.Children.Add(new TextBlock
         {
-            Text = (slot + 1).ToString(),
+            Text = (slot + 1).ToString(),   // the card's own number, matching the panel
             Foreground = Brushes.White,
             FontWeight = FontWeights.Bold,
             FontSize = 13,
@@ -153,8 +155,8 @@ public sealed class SlotAdjustWindow : Window
         var toDevice = PresentationSource.FromVisual(this)?.CompositionTarget?.TransformToDevice
                        ?? Matrix.Identity;
 
-        var points = new List<ScreenPoint>(CommandCard.Slots);
-        for (var slot = 0; slot < CommandCard.Slots; slot++)
+        var points = new List<ScreenPoint>(CommandCard.BindableSlots);
+        for (var slot = CommandCard.FirstBindableSlot; slot < CommandCard.Slots; slot++)
         {
             if (_rings[slot] is not { } ring)
                 return null; // the card lost calibration mid-edit
@@ -181,12 +183,13 @@ public sealed class SlotAdjustWindow : Window
 
         var fromDevice = PresentationSource.FromVisual(this)?.CompositionTarget?.TransformFromDevice
                          ?? Matrix.Identity;
-        var snapped = CommandCard.FitRegularGrid(points);
-        for (var slot = 0; slot < CommandCard.Slots; slot++)
+        var snapped = CommandCard.FitRegularGrid(points, CommandCard.BindableRows);
+        for (var slot = CommandCard.FirstBindableSlot; slot < CommandCard.Slots; slot++)
         {
             if (_rings[slot] is not { } ring)
                 continue;
-            var dip = fromDevice.Transform(new Point(snapped[slot].X - _deviceLeft, snapped[slot].Y - _deviceTop));
+            var point = snapped[slot - CommandCard.FirstBindableSlot];
+            var dip = fromDevice.Transform(new Point(point.X - _deviceLeft, point.Y - _deviceTop));
             Canvas.SetLeft(ring, dip.X - Ring / 2);
             Canvas.SetTop(ring, dip.Y - Ring / 2);
         }
@@ -202,7 +205,7 @@ public sealed class SlotAdjustWindow : Window
 
         // Saved positions are always the fitted grid, never the raw hand placement: the card
         // is uniform, so the jitter was never intentional and only makes the rings look wrong.
-        _card.SetOverrides(CommandCard.FitRegularGrid(points));
+        _card.SetBindableOverrides(CommandCard.FitRegularGrid(points, CommandCard.BindableRows));
         _onSaved();
         Close();
     }
