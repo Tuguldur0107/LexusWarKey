@@ -148,8 +148,19 @@
                     <StackPanel>
                         <TextBlock Foreground="{StaticResource B.Warn}" FontWeight="Bold" FontSize="13"
                                    Text="Идэвхжүүлэлт шаардлагатай" />
-                        <TextBlock Foreground="{StaticResource B.Text}" FontSize="12" Margin="0,4,0,8" TextWrapping="Wrap"
-                                   Text="Энэ апп Lexus Discord серверийн гишүүдэд зориулагдсан. Сервер дээрээ /warkey гэж бичихэд бот танд код өгнө (tier-тэй байх шаардлагатай). Кодоо доор буулгаад Идэвхжүүлэх дар." />
+                        <TextBlock Foreground="{StaticResource B.Text}" FontSize="12" Margin="0,4,0,6" TextWrapping="Wrap"
+                                   Text="Энэ апп Lexus Discord серверийн гишүүдэд зориулагдсан (tier-тэй байх шаардлагатай). Код зөвхөн ЭНЭ компьютерт ажиллана — бусдад тарааж болохгүй." />
+                        <StackPanel Orientation="Horizontal" Margin="0,0,0,8">
+                            <TextBlock Foreground="{StaticResource B.Dim}" FontSize="12" VerticalAlignment="Center"
+                                       Text="1) Discord дээрээ энэ мөрийг бич: " />
+                            <Border Background="#1A1817" CornerRadius="4" Padding="8,3">
+                                <TextBox Text="{Binding ActivationCommand, Mode=OneWay}" IsReadOnly="True"
+                                         Background="Transparent" BorderThickness="0" FontFamily="Consolas"
+                                         Foreground="{StaticResource B.Ok}" FontSize="12" />
+                            </Border>
+                            <TextBlock Foreground="{StaticResource B.Dim}" FontSize="12" VerticalAlignment="Center"
+                                       Text="   2) ирсэн кодоо доор буулга" />
+                        </StackPanel>
                         <StackPanel Orientation="Horizontal">
                             <TextBox Width="420" Text="{Binding ActivationInput, UpdateSourceTrigger=PropertyChanged}"
                                      VerticalContentAlignment="Center" MaxLines="1" />

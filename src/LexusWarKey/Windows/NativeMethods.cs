@@ -122,6 +122,16 @@ internal static class NativeMethods
     [DllImport("user32.dll", SetLastError = true)]
     internal static extern bool MoveWindow(IntPtr hWnd, int x, int y, int width, int height, bool repaint);
 
+    // ---- volume serial (one half of the machine fingerprint) ----
+
+    [DllImport("kernel32.dll", CharSet = CharSet.Unicode, SetLastError = true)]
+    [return: MarshalAs(UnmanagedType.Bool)]
+    internal static extern bool GetVolumeInformation(
+        string rootPathName,
+        System.Text.StringBuilder? volumeNameBuffer, int volumeNameSize,
+        out uint volumeSerialNumber, out uint maximumComponentLength, out uint fileSystemFlags,
+        System.Text.StringBuilder? fileSystemNameBuffer, int fileSystemNameSize);
+
     // ---- foreground window ----
 
     [DllImport("user32.dll")]

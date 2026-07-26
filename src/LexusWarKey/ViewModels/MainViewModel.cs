@@ -175,6 +175,17 @@ public sealed partial class MainViewModel : ObservableObject
     // ---- community activation (TierBot /warkey) ----
 
     [ObservableProperty] private bool _isActivated;
+
+    /// <summary>Shown in the activation banner so the user can hand it to the bot. It is a
+    /// one-way hash of this Windows install — not a serial number, not anything personal.</summary>
+    public string MachineCode => Core.MachineId.Current;
+
+    /// <summary>Ready to paste straight into Discord.</summary>
+    public string ActivationCommand => $"/warkey {Core.MachineId.Current}";
+
+    /// <summary>True when the current code predates machine binding — still honoured, but the
+    /// user is nudged to refresh it so a copied code stops working on someone else's PC.</summary>
+    [ObservableProperty] private bool _activationIsLegacy;
     [ObservableProperty] private string _activationInput = "";
     [ObservableProperty] private string _activationStatus = "";
     private DateTimeOffset? _activationExpiry;
@@ -191,6 +202,7 @@ public sealed partial class MainViewModel : ObservableObject
 
         _profile.ActivationToken = ActivationInput.Trim();
         _activationExpiry = result.ExpiresUtc;
+        ActivationIsLegacy = result.IsLegacy;
         IsActivated = true;
         ActivationInput = "";
         ActivationStatus = "";
@@ -228,6 +240,7 @@ public sealed partial class MainViewModel : ObservableObject
         var saved = Core.Activation.Validate(_profile.ActivationToken, DateTimeOffset.UtcNow);
         _isActivated = saved.Valid;
         _activationExpiry = saved.ExpiresUtc;
+        _activationIsLegacy = saved.IsLegacy;
 
         _engine = new RemapEngine(() => _profile, _watcher.IsGameFocused, () => IsActivated);
         _hook = new KeyboardHookService(_engine);
@@ -806,7 +819,10 @@ public sealed partial class MainViewModel : ObservableObject
         if (!IsActivated)
             problems.Add("Идэвхжүүлээгүй — Lexus Discord сервер дээр /warkey гэж бичээд ирсэн кодоо дээрх талбарт буулгана уу. Товч солилт идэвхжтэл ажиллахгүй.");
         else if (ActivationDaysLeft is <= 5 and { } daysLeft)
-            problems.Add($"Идэвхжүүлэлт {daysLeft} хоногийн дараа дуусна — Discord дээр /warkey гэж бичээд шинэ код аваарай.");
+            problems.Add($"Идэвхжүүлэлт {daysLeft} хоногийн дараа дуусна — Discord дээр \"{ActivationCommand}\" гэж бичээд шинэ код аваарай.");
+        else if (ActivationIsLegacy)
+            problems.Add($"Таны код энэ компьютерт холбогдоогүй хуучин хэлбэрийнх — бусад руу тарах эрсдэлтэй. " +
+                         $"Discord дээр \"{ActivationCommand}\" гэж бичээд шинэ код аваарай.");
 
         // Anything wrong with the profile file itself belongs at the top: it explains why the
         // bindings below may not be the ones the user set, and it must never scroll past unseen.

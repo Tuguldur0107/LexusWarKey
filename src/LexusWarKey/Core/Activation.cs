@@ -3,7 +3,8 @@ using System.Text;
 
 namespace LexusWarKey.Core;
 
-public sealed record ActivationResult(bool Valid, string? UserId, DateTimeOffset? ExpiresUtc, string? Error);
+public sealed record ActivationResult(
+    bool Valid, string? UserId, DateTimeOffset? ExpiresUtc, string? Error, bool IsLegacy = false);
 
 /// <summary>Checks the activation code the Lexus Discord server's TierBot hands out.
 ///
@@ -20,10 +21,12 @@ public static class Activation
         "MFkwEwYHKoZIzj0CAQYIKoZIzj0DAQcDQgAEX0Ld+8THIsGh1N+gzZis1RXv0bfCvVikdWH8yy64ZFyeuc82p+ybQO/C/g1Qn++R3aLb1zuKuOTnPD821SH1JA==";
 
     public static ActivationResult Validate(string? token, DateTimeOffset nowUtc) =>
-        Validate(token, nowUtc, Convert.FromBase64String(PublicKeyBase64));
+        Validate(token, nowUtc, Convert.FromBase64String(PublicKeyBase64), MachineId.Current);
 
-    /// <summary>Overload taking the key explicitly so tests can sign with their own pair.</summary>
-    public static ActivationResult Validate(string? token, DateTimeOffset nowUtc, byte[] publicKeySpki)
+    /// <summary>Overload taking the key and machine explicitly so tests can sign with their
+    /// own pair and pretend to be any computer.</summary>
+    public static ActivationResult Validate(
+        string? token, DateTimeOffset nowUtc, byte[] publicKeySpki, string thisMachine)
     {
         if (string.IsNullOrWhiteSpace(token))
             return new ActivationResult(false, null, null, "Код хоосон байна.");
@@ -43,9 +46,22 @@ public static class Activation
             return new ActivationResult(false, null, null, "Кодыг уншиж чадсангүй — дутуу эсвэл өөрчлөгдсөн байна.");
         }
 
+        // Two shapes: "userId|expiry" is the original, machine-agnostic form, kept working so
+        // nobody is locked out mid-migration. "userId|machineId|expiry" is bound to one
+        // computer — a code passed to a friend simply does not validate on their machine.
         var pieces = Encoding.UTF8.GetString(payload).Split('|');
-        if (pieces.Length != 2 || !long.TryParse(pieces[1], out var expiryUnix))
-            return new ActivationResult(false, null, null, "Кодын агуулга танигдсангүй.");
+        string? boundMachine = null;
+        long expiryUnix;
+        switch (pieces.Length)
+        {
+            case 2 when long.TryParse(pieces[1], out expiryUnix):
+                break;
+            case 3 when long.TryParse(pieces[2], out expiryUnix):
+                boundMachine = pieces[1];
+                break;
+            default:
+                return new ActivationResult(false, null, null, "Кодын агуулга танигдсангүй.");
+        }
 
         using var ecdsa = ECDsa.Create();
         try
@@ -66,7 +82,18 @@ public static class Activation
         if (expires <= nowUtc)
             return new ActivationResult(false, userId, expires, "Кодын хугацаа дууссан — Discord дээр /warkey гэж бичээд шинийг аваарай.");
 
-        return new ActivationResult(true, userId, expires, null);
+        // Signature and expiry are fine, so this is a genuine code — it just belongs to a
+        // different computer. Say so precisely: the usual cause is a shared code, but it is
+        // also what a reinstall or a new PC looks like, and that has an easy answer.
+        if (boundMachine is not null
+            && !boundMachine.Equals(thisMachine, StringComparison.OrdinalIgnoreCase))
+        {
+            return new ActivationResult(false, userId, expires,
+                $"Энэ код өөр компьютерт олгогдсон байна. Энэ компьютерийн код: {thisMachine} — " +
+                "Discord дээр /warkey гэж бичээд үүнийг өгч шинэ код аваарай.");
+        }
+
+        return new ActivationResult(true, userId, expires, null, IsLegacy: boundMachine is null);
     }
 
     private static byte[] FromBase64Url(string text)
