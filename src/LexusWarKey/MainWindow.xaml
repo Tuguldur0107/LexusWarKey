@@ -111,27 +111,10 @@
         <Grid Grid.Row="1" Margin="22,16,22,18">
             <Grid.RowDefinitions>
                 <RowDefinition Height="Auto" />
-                <RowDefinition Height="Auto" />
                 <RowDefinition Height="*" />
             </Grid.RowDefinitions>
 
-            <!-- toggles -->
-            <Border Grid.Row="0" Style="{StaticResource Card}" Padding="16,12">
-                <StackPanel Orientation="Horizontal">
-                    <CheckBox IsChecked="{Binding IsEnabled}" Content="Идэвхтэй" FontWeight="SemiBold" />
-                    <Rectangle Width="1" Fill="{StaticResource B.Border}" Margin="20,2" />
-                    <CheckBox IsChecked="{Binding OnlyWhenGameFocused}" Content="Зөвхөн Warcraft дотор" />
-                    <Rectangle Width="1" Fill="{StaticResource B.Border}" Margin="20,2" />
-                    <CheckBox IsChecked="{Binding StartWithWindows}" Content="Windows-тэй хамт асаах" />
-                    <Rectangle Width="1" Fill="{StaticResource B.Border}" Margin="20,2" />
-                    <CheckBox IsChecked="{Binding MinimiseToTray}" Content="Хаахад tray-д үлдэх" />
-                    <Rectangle Width="1" Fill="{StaticResource B.Border}" Margin="20,2" />
-                    <TextBlock Text="Тоглоом дотор: Ctrl + F6" Foreground="{StaticResource B.Dim}"
-                               FontSize="12" VerticalAlignment="Center" />
-                </StackPanel>
-            </Border>
-
-            <StackPanel Grid.Row="1">
+            <StackPanel Grid.Row="0">
                 <!-- activation banner: the app is for the Lexus Discord community -->
                 <Border CornerRadius="8" Background="#2A2416" BorderBrush="{StaticResource B.Warn}"
                         BorderThickness="1" Padding="14,11" Margin="0,10,0,0">
@@ -215,7 +198,7 @@
                 </Border>
             </StackPanel>
 
-            <TabControl Grid.Row="2" Margin="0,14,0,0">
+            <TabControl Grid.Row="1" Margin="0,14,0,0">
 
                 <!-- ===== Keys: inventory and skills side by side, like the game ===== -->
                 <TabItem Header="Товч">
@@ -343,36 +326,113 @@
                             <Border Style="{StaticResource Card}">
                                 <StackPanel>
                                     <TextBlock Style="{StaticResource H2}" Text="Тоглоом дотроосоо тохируулах" />
-                                    <TextBlock Style="{StaticResource Dim}" Margin="0,8,0,0"
-                                               Text="Тоглож байхдаа Ctrl + F6 дар — жижиг самбар тоглоомын дээр гарч ирнэ. Энэ нь фокус булаадаггүй тул тоглоом минимиз болохгүй, alt-tab хийх шаардлагагүй." />
-                                    <TextBlock Style="{StaticResource Dim}" Margin="0,6,0,0"
-                                               Text="Самбар нээлттэй үед: 1-6 дарж эд зүйлийн нүд сонгоод, дараа нь хүссэн товчоо дар. Esc дарж хаана." />
+                                    <TextBlock Style="{StaticResource Dim}" Margin="0,8,0,0" TextWrapping="Wrap"
+                                               Text="Тоглож байхдаа Ctrl + F6 дар — жижиг самбар тоглоомын дээр гарч ирнэ. Фокус булаадаггүй тул тоглоом минимиз болохгүй, alt-tab хийх шаардлагагүй." />
+                                    <TextBlock Style="{StaticResource Dim}" Margin="0,6,0,0" TextWrapping="Wrap"
+                                               Text="Нүд дээр дараад (эсвэл 1–6 дарж эд зүйлийн нүд сонгоод) хүссэн товчоо дар. Backspace = нүд цэвэрлэх, Esc = болих." />
+                                </StackPanel>
+                            </Border>
+
+                            <Border Style="{StaticResource Card}" Margin="0,10,0,0">
+                                <StackPanel>
+                                    <TextBlock Style="{StaticResource H2}" Text="Чадварыг байрлалаар дарах (LoD)" />
+                                    <TextBlock Style="{StaticResource Dim}" Margin="0,8,0,0" TextWrapping="Wrap"
+                                               Text="LoD-д чадвар санамсаргүй ирдэг тул үсэг нь урьдчилан мэдэгддэггүй. Тиймээс товч чинь үсгийг нь биш, командын картын НҮДИЙГ дардаг." />
+                                    <TextBlock Style="{StaticResource Dim}" Margin="0,6,0,0" TextWrapping="Wrap"
+                                               Text="Нэг удаа холбоно: Ctrl + F6 → самбарын торыг тоглоомын командын карт дээр яг давхарла (◢ булангаар хэмжээг нь тааруул) → 🔗 Холбох. Дараа нь 📍 Шалгах · Засах дарж цагираг бүр өөрийн нүдэн дээрээ буусныг хараарай; буруу байвал чирээд 💾 Хадгална." />
+                                    <TextBlock Style="{StaticResource Dim}" Margin="0,6,0,0" TextWrapping="Wrap"
+                                               Text="Доод эгнээ (9–12) = үндсэн чадварууд. LoD-ийн 5, 6 дахь чадвар дунд эгнээний баруун хоёр нүдэнд (7–8) ордог." />
+                                </StackPanel>
+                            </Border>
+
+                            <Border Style="{StaticResource Card}" Margin="0,10,0,0">
+                                <StackPanel>
+                                    <TextBlock Style="{StaticResource H2}" Text="Чат бичихэд юу болдог вэ" />
+                                    <TextBlock Style="{StaticResource Dim}" Margin="0,8,0,0" TextWrapping="Wrap"
+                                               Text="Enter дарж тоглоомын чат нээхэд товч солилт автоматаар зогсдог тул бичсэн үсэг чинь хэвээрээ ордог. Enter (илгээх) эсвэл Esc (болих) дарахад буцаад асна — толгойд «Чат нээлттэй» гэж харагдана." />
+                                    <TextBlock Style="{StaticResource Dim}" Margin="0,6,0,0" TextWrapping="Wrap"
+                                               Text="Quick Chat дээр «Зөвхөн багтаа» тэмдэглэвэл зөвхөн холбоотон харна (Ctrl+Enter), эс тэмдэглэвэл дайсан ч харна (Shift+Enter)." />
                                 </StackPanel>
                             </Border>
 
                             <Border Style="{StaticResource Card}" Margin="0,10,0,0">
                                 <StackPanel>
                                     <TextBlock Style="{StaticResource H2}" Text="Хэрхэн ажилладаг вэ" />
-                                    <TextBlock Style="{StaticResource Dim}" Margin="0,8,0,0"
+                                    <TextBlock Style="{StaticResource Dim}" Margin="0,8,0,0" TextWrapping="Wrap"
                                                Text="Энэ апп зөвхөн ТОВЧ СОЛИНО: нэг даралт = нэг үйлдэл. Тоглоом руу код оруулдаггүй, санах ойд хүрдэггүй, автоматаар юу ч хийдэггүй. Garena-гийн сүлжээний давхарга байхгүй тул GameRanger дээр зөрчил үүсгэхгүй." />
+                                    <TextBlock Style="{StaticResource Dim}" Margin="0,6,0,0" TextWrapping="Wrap"
+                                               Text="Warcraft III-д CustomKeys.txt гэсэн албан ёсны боломж бий (тоглоомын хавтасны CustomKeyInfo.txt-г уншина уу). Чадварын товчийг тэндээс өөрчилвөл энэ аппгүйгээр ч ажиллана, гэхдээ LoD шиг санамсаргүй чадвартай горимд тохирдоггүй. Эд зүйлийн товчийг харин зөвхөн ийм программаар л солино." />
                                 </StackPanel>
                             </Border>
 
                             <Border Style="{StaticResource Card}" Margin="0,10,0,0">
                                 <StackPanel>
-                                    <TextBlock Style="{StaticResource H2}" Text="Чадварын товчийг тоглоом дотроос ч солино" />
-                                    <TextBlock Style="{StaticResource Dim}" Margin="0,8,0,0"
-                                               Text="Warcraft III-д CustomKeys.txt гэсэн албан ёсны боломж бий (тоглоомын хавтасны CustomKeyInfo.txt-г уншина уу). Чадварын товчийг тэндээс өөрчилвөл энэ аппгүйгээр ч ажиллана. Эд зүйлийн товчийг харин зөвхөн ийм программаар л солино." />
+                                    <TextBlock Style="{StaticResource H2}" Text="Бүтээгч" />
+                                    <StackPanel Orientation="Horizontal" Margin="0,8,0,0">
+                                        <TextBlock Text="Lil" Foreground="{StaticResource B.Red}" FontWeight="Bold" FontSize="15" />
+                                        <TextBlock Style="{StaticResource Dim}" Text="  ·  Lexus WarKey" VerticalAlignment="Center" />
+                                    </StackPanel>
+                                </StackPanel>
+                            </Border>
+                        </StackPanel>
+                    </ScrollViewer>
+                </TabItem>
+
+                <TabItem Header="Тохиргоо">
+                    <ScrollViewer VerticalScrollBarVisibility="Auto" Padding="0,0,6,0">
+                        <StackPanel>
+                            <!-- The switches that used to sit in a strip above the tabs, where the
+                                 labels alone had to carry what each one does. -->
+                            <Border Style="{StaticResource Card}">
+                                <StackPanel>
+                                    <TextBlock Style="{StaticResource H2}" Text="Ажиллагаа" />
+
+                                    <CheckBox IsChecked="{Binding IsEnabled}" Content="Идэвхтэй" FontWeight="SemiBold" Margin="0,12,0,0" />
+                                    <TextBlock Style="{StaticResource Dim}" Margin="27,4,0,0" TextWrapping="Wrap"
+                                               Text="Унтраавал ямар ч товч солигдохгүй — апп бүрэн хөндлөнгөөс оролцохоо болино." />
+
+                                    <CheckBox IsChecked="{Binding OnlyWhenGameFocused}" Content="Зөвхөн Warcraft дотор" Margin="0,14,0,0" />
+                                    <TextBlock Style="{StaticResource Dim}" Margin="27,4,0,0" TextWrapping="Wrap"
+                                               Text="Асаалттай үед товч солилт зөвхөн тоглоом фокуст байхад ажиллана. Хөтөч, Discord зэрэгт огт нөлөөлөхгүй — үүнийг унтраахыг зөвлөхгүй." />
+
+                                    <CheckBox IsChecked="{Binding StartWithWindows}" Content="Windows-тэй хамт асаах" Margin="0,14,0,0" />
+                                    <TextBlock Style="{StaticResource Dim}" Margin="27,4,0,0" TextWrapping="Wrap"
+                                               Text="Зөвхөн таны хэрэглэгчид хамаарна (админ эрх шаардахгүй). Task Manager → Startup хэсгээс ч удирдаж болно." />
+
+                                    <CheckBox IsChecked="{Binding MinimiseToTray}" Content="Хаахад tray-д үлдэх" Margin="0,14,0,0" />
+                                    <TextBlock Style="{StaticResource Dim}" Margin="27,4,0,0" TextWrapping="Wrap"
+                                               Text="Цонхыг хаахад апп taskbar-аас алга болж, цагны хажууд үлдэн ажилласаар байна. Дүрс дээр 2 дарж нээнэ, баруун товчоор бүрэн гарна." />
+
+                                    <TextBlock Style="{StaticResource Dim}" Margin="0,16,0,0" TextWrapping="Wrap"
+                                               Text="Тоглоом дотроос тохируулах: Ctrl + F6" />
                                 </StackPanel>
                             </Border>
 
+                            <!-- Always reachable, so a code can be renewed before anything expires -->
                             <Border Style="{StaticResource Card}" Margin="0,10,0,0">
                                 <StackPanel>
-                                    <TextBlock Style="{StaticResource H2}" Text="Тохиргоо" />
-                                    <TextBlock Style="{StaticResource Dim}" Margin="0,8,0,0"
-                                               Text="%LocalAppData%\LexusWarKey\profile.json — өөрчлөлт болгон шууд хадгалагдана." />
-                                    <TextBlock Style="{StaticResource Dim}" Margin="0,6,0,0"
-                                               Text="Windows-тэй хамт асаах тохиргоо нь зөвхөн таны хэрэглэгчид хамаарна (админ эрх шаардахгүй). Task Manager → Startup хэсгээс ч удирдаж болно." />
+                                    <TextBlock Style="{StaticResource H2}" Text="Идэвхжүүлэлт" />
+                                    <TextBlock Text="{Binding ActivationSummary}" Foreground="{StaticResource B.Dim}"
+                                               FontSize="12" Margin="0,8,0,0" TextWrapping="Wrap" />
+                                    <StackPanel Orientation="Horizontal" Margin="0,10,0,0">
+                                        <TextBlock Foreground="{StaticResource B.Dim}" FontSize="12" VerticalAlignment="Center"
+                                                   Text="Lexus Discord server дээр бич: " />
+                                        <Border Background="#1A1817" CornerRadius="4" Padding="8,3">
+                                            <TextBox Text="{Binding ActivationCommand, Mode=OneWay}" IsReadOnly="True"
+                                                     Background="Transparent" BorderThickness="0" FontFamily="Consolas"
+                                                     Foreground="{StaticResource B.Ok}" FontSize="12" />
+                                        </Border>
+                                    </StackPanel>
+                                    <TextBlock Style="{StaticResource Dim}" Margin="0,8,0,0" TextWrapping="Wrap"
+                                               Text="Ботоос ирсэн кодоо доор буулгаад Хадгална уу. Код зөвхөн энэ компьютерт ажиллана." />
+                                    <StackPanel Orientation="Horizontal" Margin="0,8,0,0">
+                                        <TextBox Width="420" Text="{Binding ActivationInput, UpdateSourceTrigger=PropertyChanged}"
+                                                 VerticalContentAlignment="Center" MaxLines="1" />
+                                        <Button Style="{StaticResource Btn.Accent}" Content="Кодоо хадгалах" Margin="8,0,0,0"
+                                                Command="{Binding ActivateCommand}" />
+                                    </StackPanel>
+                                    <TextBlock Foreground="{StaticResource B.Red}" FontSize="12" Margin="0,6,0,0"
+                                               TextWrapping="Wrap" Text="{Binding ActivationStatus}" />
                                 </StackPanel>
                             </Border>
 
@@ -390,41 +450,13 @@
                                 </StackPanel>
                             </Border>
 
-                            <!-- Always reachable, so a code can be renewed before anything expires -->
                             <Border Style="{StaticResource Card}" Margin="0,10,0,0">
                                 <StackPanel>
-                                    <TextBlock Style="{StaticResource H2}" Text="Идэвхжүүлэлт" />
-                                    <StackPanel Orientation="Horizontal" Margin="0,10,0,0">
-                                        <TextBlock Foreground="{StaticResource B.Dim}" FontSize="12" VerticalAlignment="Center"
-                                                   Text="Энэ компьютерийн код: " />
-                                        <Border Background="#1A1817" CornerRadius="4" Padding="8,3">
-                                            <TextBox Text="{Binding ActivationCommand, Mode=OneWay}" IsReadOnly="True"
-                                                     Background="Transparent" BorderThickness="0" FontFamily="Consolas"
-                                                     Foreground="{StaticResource B.Ok}" FontSize="12" />
-                                        </Border>
-                                        <TextBlock Foreground="{StaticResource B.Dim}" FontSize="12" VerticalAlignment="Center"
-                                                   Text="   ← Lexus Discord server дээр бичээд код аваарай" />
-                                    </StackPanel>
-                                    <TextBlock Text="{Binding ActivationSummary}" Foreground="{StaticResource B.Dim}"
-                                               FontSize="12" Margin="0,8,0,0" TextWrapping="Wrap" />
-                                    <StackPanel Orientation="Horizontal" Margin="0,10,0,0">
-                                        <TextBox Width="420" Text="{Binding ActivationInput, UpdateSourceTrigger=PropertyChanged}"
-                                                 VerticalContentAlignment="Center" MaxLines="1" />
-                                        <Button Style="{StaticResource Btn.Accent}" Content="Кодоо хадгалах" Margin="8,0,0,0"
-                                                Command="{Binding ActivateCommand}" />
-                                    </StackPanel>
-                                    <TextBlock Foreground="{StaticResource B.Red}" FontSize="12" Margin="0,6,0,0"
-                                               TextWrapping="Wrap" Text="{Binding ActivationStatus}" />
-                                </StackPanel>
-                            </Border>
-
-                            <Border Style="{StaticResource Card}" Margin="0,10,0,0">
-                                <StackPanel>
-                                    <TextBlock Style="{StaticResource H2}" Text="Бүтээгч" />
-                                    <StackPanel Orientation="Horizontal" Margin="0,8,0,0">
-                                        <TextBlock Text="Lil" Foreground="{StaticResource B.Red}" FontWeight="Bold" FontSize="15" />
-                                        <TextBlock Style="{StaticResource Dim}" Text="  ·  Lexus WarKey" VerticalAlignment="Center" />
-                                    </StackPanel>
+                                    <TextBlock Style="{StaticResource H2}" Text="Файлууд" />
+                                    <TextBlock Style="{StaticResource Dim}" Margin="0,8,0,0" TextWrapping="Wrap"
+                                               Text="Тохиргоо: %LocalAppData%\LexusWarKey\profile.json — өөрчлөлт болгон шууд хадгалагдаж, нөөц хувь нь profile.backup.json-д үлддэг." />
+                                    <TextBlock Style="{StaticResource Dim}" Margin="0,6,0,0" TextWrapping="Wrap"
+                                               Text="Асуудал гарвал: %LocalAppData%\LexusWarKey\diagnostic.log — юу болсныг эндээс харна." />
                                 </StackPanel>
                             </Border>
                         </StackPanel>
