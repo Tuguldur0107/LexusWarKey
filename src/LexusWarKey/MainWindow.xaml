@@ -368,10 +368,8 @@
                             <Border Style="{StaticResource Card}" Margin="0,10,0,0">
                                 <StackPanel>
                                     <TextBlock Style="{StaticResource H2}" Text="Шинэчлэлт" />
-                                    <CheckBox IsChecked="{Binding AutoInstallUpdates}" Margin="0,10,0,0"
-                                              Content="Автоматаар татаад суулгах (асуулгүй)" />
-                                    <TextBlock Style="{StaticResource Dim}" Margin="27,5,0,0"
-                                               Text="Асаалттай үед апп нээгдэх бүрд шинэ хувилбар байвал өөрөө татаж суулгаад дахин нээгдэнэ. Унтраалттай үед зөвхөн ногоон туузаар санал болгоно." />
+                                    <TextBlock Style="{StaticResource Dim}" Margin="0,8,0,0" TextWrapping="Wrap"
+                                               Text="Шинэчлэлт автоматаар суудаг: апп нээгдэх бүрд шалгаад, шинэ хувилбар байвал өөрөө татаж суулгаад дахин нээгдэнэ. Тохиргоо чинь хэвээр үлддэг. Бүх гишүүн ижил хувилбартай байх ёстой тул үүнийг унтраах боломжгүй." />
                                     <StackPanel Orientation="Horizontal" Margin="0,12,0,0">
                                         <Button Content="Одоо шалгах" Command="{Binding CheckUpdateNowCommand}"
                                                 IsEnabled="{Binding IsCheckingUpdate, Converter={StaticResource InverseBool}}" />

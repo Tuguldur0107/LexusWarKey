@@ -164,10 +164,7 @@ public sealed partial class MainViewModel : ObservableObject
     [ObservableProperty] private bool _isUpdating;
     [ObservableProperty] private bool _isCheckingUpdate;
     [ObservableProperty] private double _updateProgress;
-    [ObservableProperty] private bool _autoInstallUpdates;
     private UpdateInfo? _pendingUpdate;
-
-    partial void OnAutoInstallUpdatesChanged(bool value) { _profile.AutoInstallUpdates = value; Save(); }
 
     public string VersionText => $"v{UpdateChecker.CurrentVersion}";
     [ObservableProperty] private string _calibrationText = "";
@@ -238,7 +235,6 @@ public sealed partial class MainViewModel : ObservableObject
         _onlyWhenGameFocused = _profile.OnlyWhenGameFocused;
         _skillsUsePosition = _profile.SkillsUsePosition;
         _minimiseToTray = _profile.MinimiseToTray;
-        _autoInstallUpdates = _profile.AutoInstallUpdates;
         _startWithWindows = _startup.IsEnabled();
         if (_startWithWindows)
             _startup.RepairPathIfNeeded();
@@ -335,29 +331,24 @@ public sealed partial class MainViewModel : ObservableObject
         UpdateAvailable = true;
         UpdateText = $"Шинэ хувилбар гарсан: v{info.Version} ({info.SizeBytes / (1024 * 1024)} MB)";
 
-        if (AutoInstallUpdates)
-            await InstallUpdateAsync(skipConfirmation: true).ConfigureAwait(true);
+        // Updates are not optional: one member on a stale version means desynced behaviour
+        // in the community the app serves, so a found update installs immediately. Offline
+        // machines simply keep running the version they have until the next successful check.
+        await InstallUpdateAsync().ConfigureAwait(true);
     }
 
     [RelayCommand]
     private Task CheckUpdateNow() => CheckForUpdateAsync(announceWhenUpToDate: true);
 
     [RelayCommand]
-    private Task InstallUpdate() => InstallUpdateAsync(skipConfirmation: false);
+    private Task InstallUpdate() => InstallUpdateAsync();
 
-    private async Task InstallUpdateAsync(bool skipConfirmation)
+    // No confirmation and no opt-out: every member must run the same version, so a found
+    // update simply installs. The only thing that stops it is being offline.
+    private async Task InstallUpdateAsync()
     {
         if (_pendingUpdate is null || IsUpdating)
             return;
-
-        if (!skipConfirmation)
-        {
-            var confirm = MessageBox.Show(
-                $"v{_pendingUpdate.Version} татаж суулгах уу?\n\nАпп татаж дуусаад автоматаар дахин нээгдэнэ. Таны тохиргоо хэвээр үлдэнэ.",
-                "Lexus WarKey", MessageBoxButton.YesNo, MessageBoxImage.Question);
-            if (confirm != MessageBoxResult.Yes)
-                return;
-        }
 
         IsUpdating = true;
         UpdateProgress = 0;
