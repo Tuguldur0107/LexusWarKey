@@ -141,8 +141,6 @@ public sealed partial class MainViewModel : ObservableObject
     [ObservableProperty] private string _statusText = "";
     [ObservableProperty] private string _statusDetail = "";
     [ObservableProperty] private bool _statusIsLive;
-    [ObservableProperty] private string _conflictText = "";
-    [ObservableProperty] private bool _hasConflicts;
     [ObservableProperty] private string _problemText = "";
     [ObservableProperty] private bool _hasProblems;
     [ObservableProperty] private bool _isCapturing;
@@ -731,12 +729,6 @@ public sealed partial class MainViewModel : ObservableObject
 
     private void RefreshConflicts()
     {
-        var conflicts = RemapEngine.FindConflicts(_profile);
-        HasConflicts = conflicts.Count > 0;
-        ConflictText = HasConflicts
-            ? "Давхардсан товч: " + string.Join(", ", conflicts.Select(VirtualKeys.NameOf))
-            : "";
-
         var problems = new List<string>();
 
         if (!IsActivated)
@@ -754,6 +746,11 @@ public sealed partial class MainViewModel : ObservableObject
             problems.Add("Товч уншигч ажиллахгүй байна. Аппаа хааж дахин нээнэ үү.");
 
         problems.AddRange(RemapEngine.FindDeadBindings(_profile));
+
+        var conflicts = RemapEngine.FindConflicts(_profile);
+        if (conflicts.Count > 0)
+            problems.Add("Нэг товч хоёр газар оноогдсон: " + string.Join(", ", conflicts.Select(VirtualKeys.NameOf))
+                         + " — нэгийг нь цэвэрлэнэ үү.");
 
         HasProblems = problems.Count > 0;
         ProblemText = string.Join("\n", problems.Select(p => "• " + p));
