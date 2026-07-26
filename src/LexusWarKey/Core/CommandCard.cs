@@ -151,15 +151,37 @@ public sealed class CommandCard
     /// onto the buttons and saved), and agree with the relative coordinates AucT's tool has
     /// shipped for two decades — so a fresh install starts with clicks already landing on
     /// the card, and the rings exist for whatever small correction remains.</summary>
-    public static CommandCard DefaultFor(int screenWidth, int screenHeight) => new()
+    public static CommandCard DefaultFor(int screenWidth, int screenHeight) =>
+        DefaultForArea(0, 0, screenWidth, screenHeight);
+
+    /// <summary>The same fractions applied to an arbitrary rectangle — the game's client area
+    /// when it is running, the whole screen otherwise. Windowed Warcraft draws its card at the
+    /// WINDOW's bottom-right, so a screen-fraction default lands on empty desktop; this is why
+    /// the app looks at where the game actually is before guessing.</summary>
+    public static CommandCard DefaultForArea(int left, int top, int width, int height) => new()
     {
-        TopLeftX = (int)Math.Round(screenWidth * 0.7961),
-        TopLeftY = (int)Math.Round(screenHeight * 0.8125),
-        BottomRightX = (int)Math.Round(screenWidth * 0.9590),
-        BottomRightY = (int)Math.Round(screenHeight * 0.9581),
-        CapturedWidth = screenWidth,
-        CapturedHeight = screenHeight,
+        TopLeftX = left + (int)Math.Round(width * 0.7961),
+        TopLeftY = top + (int)Math.Round(height * 0.8125),
+        BottomRightX = left + (int)Math.Round(width * 0.9590),
+        BottomRightY = top + (int)Math.Round(height * 0.9581),
+        CapturedWidth = width,
+        CapturedHeight = height,
     };
+
+    /// <summary>True when every slot lands inside the given rectangle. A calibration made at a
+    /// different resolution, or before the game was windowed, points somewhere it cannot work —
+    /// and that is invisible until the player casts and nothing happens.</summary>
+    public bool FitsInside(int left, int top, int width, int height)
+    {
+        if (!IsCalibrated || width <= 0 || height <= 0)
+            return true; // nothing to contradict
+
+        return TopLeftX >= left && TopLeftY >= top
+               && BottomRightX <= left + width && BottomRightY <= top + height
+               && (Overrides is null
+                   || Overrides.Where(p => p is not null).All(p =>
+                       p!.X >= left && p.X <= left + width && p.Y >= top && p.Y <= top + height));
+    }
 
     /// <summary>Replaces every slot position with an explicit point. Used when the user has
     /// dragged the rings into place — from then on the grid is exactly what they see.</summary>

@@ -61,6 +61,57 @@ public sealed class GameWindowWatcher
         return false;
     }
 
+    /// <summary>Where the game is actually drawing, in screen pixels — its client area, not
+    /// the whole screen. This is the difference between a card default that works and one that
+    /// points at empty desktop: Warcraft in a window puts its command card at the WINDOW's
+    /// bottom-right, and a screen-fraction guess lands nowhere near it.
+    ///
+    /// Returns false when the game is not running or has no window yet.</summary>
+    public bool TryGetGameArea(out int left, out int top, out int width, out int height)
+    {
+        left = top = width = height = 0;
+
+        var hwnd = FindGameWindow();
+        if (hwnd == IntPtr.Zero
+            || !NativeMethods.GetClientRect(hwnd, out var client)
+            || client.Right <= 0 || client.Bottom <= 0)
+            return false;
+
+        var origin = new NativeMethods.POINT { X = 0, Y = 0 };
+        if (!NativeMethods.ClientToScreen(hwnd, ref origin))
+            return false;
+
+        left = origin.X;
+        top = origin.Y;
+        width = client.Right;
+        height = client.Bottom;
+        return true;
+    }
+
+    /// <summary>The game's main window, focused or not.</summary>
+    private static IntPtr FindGameWindow()
+    {
+        foreach (var name in GameProcessNames)
+        {
+            try
+            {
+                foreach (var process in Process.GetProcessesByName(name))
+                {
+                    using (process)
+                    {
+                        if (process.MainWindowHandle != IntPtr.Zero)
+                            return process.MainWindowHandle;
+                    }
+                }
+            }
+            catch
+            {
+                // a process vanishing mid-enumeration is normal; keep looking
+            }
+        }
+        return IntPtr.Zero;
+    }
+
     public string? ForegroundProcessName()
     {
         var hwnd = NativeMethods.GetForegroundWindow();

@@ -251,19 +251,9 @@ public sealed partial class MainViewModel : ObservableObject
         _profile = _store.Load();
         DiagnosticLog.Write($"startup v{UpdateChecker.CurrentVersion}; profile: skills={_profile.Skills.Count(m => m.ClaimsKey)}, overrides={(_profile.CommandCard.Overrides?.Count ?? 0)}, warning={_store.LoadWarning ?? "none"}");
 
-        // A fresh install starts with the card where a fullscreen game actually puts it, so
-        // skills work out of the box; Холбох and the draggable rings remain for fine-tuning.
-        // Never touches a card the user has already linked or adjusted.
-        if (!_profile.CommandCard.IsCalibrated)
-        {
-            _profile.CommandCard = CommandCard.DefaultFor(
-                NativeMethods.GetSystemMetrics(NativeMethods.SM_CXSCREEN),
-                NativeMethods.GetSystemMetrics(NativeMethods.SM_CYSCREEN));
-        }
-
-        RescaleCardIfScreenChanged();
-
         _watcher = new GameWindowWatcher();
+        SeedCardIfNeeded();
+        RescaleCardIfScreenChanged();
 
         var saved = Core.Activation.Validate(_profile.ActivationToken, DateTimeOffset.UtcNow);
         _isActivated = saved.Valid;
@@ -445,6 +435,59 @@ public sealed partial class MainViewModel : ObservableObject
     }
 
     // ---- command-card calibration (position-based skills) ----
+
+    /// <summary>Gives an unlinked card a starting position. It measures the GAME's client area
+    /// when the game is running, and only falls back to the whole screen otherwise: windowed
+    /// Warcraft draws its command card at the window's bottom-right, so a screen-fraction guess
+    /// lands on empty desktop — which is exactly what "the rings are somewhere else" looks like.
+    /// Never touches a card the user has already linked or adjusted.</summary>
+    private void SeedCardIfNeeded()
+    {
+        if (_profile.CommandCard.IsCalibrated)
+            return;
+
+        if (_watcher.TryGetGameArea(out var left, out var top, out var width, out var height))
+        {
+            _profile.CommandCard = CommandCard.DefaultForArea(left, top, width, height);
+            DiagnosticLog.Write($"card seeded from game area {width}x{height} at ({left},{top})");
+        }
+        else
+        {
+            var screenW = NativeMethods.GetSystemMetrics(NativeMethods.SM_CXSCREEN);
+            var screenH = NativeMethods.GetSystemMetrics(NativeMethods.SM_CYSCREEN);
+            _profile.CommandCard = CommandCard.DefaultFor(screenW, screenH);
+            DiagnosticLog.Write($"card seeded from screen {screenW}x{screenH} (game not running)");
+        }
+    }
+
+    /// <summary>Human-readable display and game geometry, for the Settings tab and for anyone
+    /// reporting a problem. "The rings are in the wrong place" is unanswerable without it.</summary>
+    public string DisplayInfo
+    {
+        get
+        {
+            var screenW = NativeMethods.GetSystemMetrics(NativeMethods.SM_CXSCREEN);
+            var screenH = NativeMethods.GetSystemMetrics(NativeMethods.SM_CYSCREEN);
+            var text = $"Дэлгэц: {screenW} x {screenH}";
+
+            if (_watcher.TryGetGameArea(out var l, out var t, out var w, out var h))
+            {
+                text += w == screenW && h == screenH && l == 0 && t == 0
+                    ? "   ·   Warcraft: бүтэн дэлгэц"
+                    : $"   ·   Warcraft цонх: {w} x {h}  ({l}, {t})";
+            }
+            else
+            {
+                text += "   ·   Warcraft ажиллаагүй байна";
+            }
+
+            var card = _profile.CommandCard;
+            text += card.IsCalibrated
+                ? $"   ·   Карт: ({card.TopLeftX}, {card.TopLeftY}) → ({card.BottomRightX}, {card.BottomRightY})"
+                : "   ·   Карт холбоогүй";
+            return text;
+        }
+    }
 
     /// <summary>Records which physical screen the card's pixels belong to.</summary>
     private void StampCardScreen()
@@ -763,6 +806,18 @@ public sealed partial class MainViewModel : ObservableObject
 
         problems.AddRange(RemapEngine.FindDeadBindings(_profile));
 
+        // A card linked at another resolution, or before the game was windowed, points outside
+        // where the game is drawing. Nothing about that is visible in play — the key simply
+        // does nothing — so say it here.
+        if (_profile.CommandCard.IsCalibrated
+            && _watcher.TryGetGameArea(out var gl, out var gt, out var gw, out var gh)
+            && !_profile.CommandCard.FitsInside(gl, gt, gw, gh))
+        {
+            problems.Add($"Командын картын байрлал Warcraft-ын цонхны гадна байна ({gw}x{gh}). " +
+                         "Дэлгэцийн нягтрал эсвэл цонхны горим өөрчлөгдсөн бололтой — " +
+                         "тоглоом дотроо Ctrl + F6 дараад дахин «Холбох» дар.");
+        }
+
         var conflicts = RemapEngine.FindConflicts(_profile);
         if (conflicts.Count > 0)
             problems.Add("Нэг товч хоёр газар оноогдсон: " + string.Join(", ", conflicts.Select(VirtualKeys.NameOf))
@@ -784,6 +839,7 @@ public sealed partial class MainViewModel : ObservableObject
         // Enter would leave the app permanently, and invisibly, doing nothing.
         OnPropertyChanged(nameof(NeedsActivationAttention));
         OnPropertyChanged(nameof(ActivationSummary));
+        OnPropertyChanged(nameof(DisplayInfo));
 
         if (IsActivated && _activationExpiry is { } activeUntil && activeUntil <= DateTimeOffset.UtcNow)
         {
