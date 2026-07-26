@@ -93,8 +93,13 @@ internal static class NativeMethods
     internal const int WM_XBUTTONDOWN = 0x020B, WM_XBUTTONUP = 0x020C;
     internal const uint LLMHF_INJECTED = 0x00000001;
     internal const uint INPUT_MOUSE = 0;
+    internal const uint MOUSEEVENTF_MOVE = 0x0001;
     internal const uint MOUSEEVENTF_LEFTDOWN = 0x0002, MOUSEEVENTF_LEFTUP = 0x0004;
     internal const uint MOUSEEVENTF_RIGHTDOWN = 0x0008, MOUSEEVENTF_RIGHTUP = 0x0010;
+    // An absolute move carries the destination with it, so it can ride in the same SendInput
+    // array as the button press. VIRTUALDESK makes the coordinates span every monitor rather
+    // than just the primary one.
+    internal const uint MOUSEEVENTF_ABSOLUTE = 0x8000, MOUSEEVENTF_VIRTUALDESK = 0x4000;
 
     [StructLayout(LayoutKind.Sequential)]
     internal struct MSLLHOOKSTRUCT

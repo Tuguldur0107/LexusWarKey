@@ -317,9 +317,10 @@ public sealed class KeyboardHookService : IDisposable
                 DiagnosticLog.Write($"click deferred {waited}ms (mouse button held)");
 
             var watch = System.Diagnostics.Stopwatch.StartNew();
-            InputSender.ClickAt(x, y, rightClick);
+            var ok = InputSender.ClickAt(x, y, rightClick);
             watch.Stop();
-            DiagnosticLog.Write($"click ({x},{y}) right={rightClick} {watch.ElapsedMilliseconds}ms");
+            DiagnosticLog.Write($"click ({x},{y}) right={rightClick} {watch.ElapsedMilliseconds}ms"
+                                + (ok ? "" : " REFUSED by Windows (game elevated?)"));
         }
         catch { /* a failed click must never take the app down */ }
     }
