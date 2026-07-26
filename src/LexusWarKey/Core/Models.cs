@@ -45,7 +45,9 @@ public sealed class WarKeyProfile
     /// POSITION instead of letter (required for LoD-style modes with random abilities).</summary>
     public CommandCard CommandCard { get; set; } = new();
 
-    /// <summary>True = a skill key clicks its command-card slot; false = plain key remapping.</summary>
+    /// <summary>Always true. Kept so old profile files still deserialise: the skill grid never
+    /// offered a target key, so the "false" branch left every skill binding inert — a switch
+    /// with no working position. NormaliseSlots forces it back on.</summary>
     public bool SkillsUsePosition { get; set; } = true;
 
     /// <summary>Legacy setting from when posting messages was the primary click path. Kept so
@@ -156,6 +158,8 @@ public sealed class WarKeyProfile
                 twin.Messages.AddRange(macro.Messages);
         }
         ChatMacros = mergedMacros;
+
+        SkillsUsePosition = true;
 
         // Hand-dragged ring positions carry a few pixels of tremor each; the card they were
         // aimed at is a perfectly even grid. Snap once on load so they stay tidy forever.

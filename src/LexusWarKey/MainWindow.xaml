@@ -38,8 +38,6 @@
                                        VerticalAlignment="Bottom" Margin="8,0,0,4" />
                         </StackPanel>
                         <StackPanel Orientation="Horizontal" Margin="0,2,0,0">
-                            <TextBlock Style="{StaticResource Dim}" Text="Эд зүйл • Чадвар • Quick Chat" />
-                            <TextBlock Text="  ·  " Foreground="{StaticResource B.Border}" FontSize="12" />
                             <TextBlock Text="Бүтээгч " Foreground="{StaticResource B.Dim}" FontSize="12" />
                             <TextBlock Text="Lil" Foreground="{StaticResource B.Red}" FontSize="12" FontWeight="Bold" />
                         </StackPanel>
@@ -209,7 +207,7 @@
                                 <!-- Inventory 2x3 -->
                                 <Border Style="{StaticResource Card}" Padding="16,14" VerticalAlignment="Top">
                                     <StackPanel>
-                                        <TextBlock Style="{StaticResource PanelTitle}" Text="Inventory" />
+                                        <TextBlock Style="{StaticResource PanelTitle}" Text="Эд зүйл" />
                                         <ItemsControl ItemsSource="{Binding InventoryRows}" Width="180">
                                             <ItemsControl.ItemsPanel>
                                                 <ItemsPanelTemplate><UniformGrid Columns="2" /></ItemsPanelTemplate>
@@ -229,7 +227,7 @@
                                 <!-- Skills: the full 4x3 command card, same shape as the game -->
                                 <Border Style="{StaticResource Card}" Padding="16,14" Margin="14,0,0,0" VerticalAlignment="Top">
                                     <StackPanel>
-                                        <TextBlock Style="{StaticResource PanelTitle}" Text="Skills" />
+                                        <TextBlock Style="{StaticResource PanelTitle}" Text="Командын карт" />
                                         <ItemsControl ItemsSource="{Binding SkillRows}" Width="360">
                                             <ItemsControl.ItemsPanel>
                                                 <ItemsPanelTemplate><UniformGrid Columns="4" /></ItemsPanelTemplate>
@@ -249,25 +247,34 @@
                                 </Border>
                             </StackPanel>
 
-                            <!-- position mode + calibration -->
-                            <Border Style="{StaticResource Card}" Padding="16,13" Margin="0,14,0,0">
-                                <StackPanel>
-                                    <CheckBox IsChecked="{Binding SkillsUsePosition}" FontWeight="SemiBold"
-                                              Content="Чадварыг БАЙРЛАЛААР дарах (LoD / random чадвар)" />
-                                    <TextBlock Style="{StaticResource Dim}" Margin="27,6,0,0"
-                                               Text="Асаалттай үед таны товч дарахад тэр байрлалд байгаа чадвар дарагдана — үсэг нь юу ч байсан хамаагүй. Товшилтыг тоглоомын цонх руу шууд илгээдэг тул курсор чинь огт хөдлөхгүй." />
-                                    <TextBlock Style="{StaticResource Dim}" Margin="27,6,0,0" Foreground="{StaticResource B.Warn}"
-                                               Text="{Binding CalibrationText}" />
-                                    <StackPanel Orientation="Horizontal" Margin="27,10,0,0">
-                                        <Button Style="{StaticResource Btn.Accent}" Content="Командын карт тохируулах"
-                                                Command="{Binding CalibrateCommand}" />
-                                        <Button Style="{StaticResource Btn.Red}" Content="Цэвэрлэх"
-                                                Command="{Binding ClearCalibrationCommand}" Margin="8,0,0,0"
-                                                Visibility="{Binding IsCalibrated, Converter={StaticResource BoolToVis}}" />
-                                    </StackPanel>
-                                    <TextBlock Style="{StaticResource Dim}" Margin="27,12,0,0" TextWrapping="Wrap"
-                                               Text="Дарахдаа курсорыг нэг фрэймийн хугацаанд (~20мс) нүд рүү аваачиж дараад буцаана — Garena WarKey-тэй ижил арга, гэхдээ хоёр дахин хурдан. Тоглоом зөвхөн жинхэнэ курсорын товшилтыг хүлээж авдаг тул үүнийг тэглэх боломжгүй." />
-                                </StackPanel>
+                            <!-- One line of state and one instruction. The old card carried a
+                                 mode switch whose "off" position had no working configuration,
+                                 raw pixel coordinates, a second calibration flow superseded by
+                                 the overlay, and a paragraph that belongs in Help. -->
+                            <Border Style="{StaticResource Card}" Padding="16,12" Margin="0,14,0,0">
+                                <Grid>
+                                    <Grid.ColumnDefinitions>
+                                        <ColumnDefinition Width="*" />
+                                        <ColumnDefinition Width="Auto" />
+                                    </Grid.ColumnDefinitions>
+                                    <TextBlock Grid.Column="0" Text="{Binding CalibrationText}" TextWrapping="Wrap"
+                                               VerticalAlignment="Center" FontSize="12">
+                                        <TextBlock.Style>
+                                            <Style TargetType="TextBlock">
+                                                <Setter Property="Foreground" Value="{StaticResource B.Warn}" />
+                                                <Style.Triggers>
+                                                    <DataTrigger Binding="{Binding IsCalibrated}" Value="True">
+                                                        <Setter Property="Foreground" Value="{StaticResource B.Ok}" />
+                                                    </DataTrigger>
+                                                </Style.Triggers>
+                                            </Style>
+                                        </TextBlock.Style>
+                                    </TextBlock>
+                                    <Button Grid.Column="1" Style="{StaticResource Btn.Ghost}" Content="Холболтыг цуцлах"
+                                            Command="{Binding ClearCalibrationCommand}" Margin="12,0,0,0"
+                                            VerticalAlignment="Center"
+                                            Visibility="{Binding IsCalibrated, Converter={StaticResource BoolToVis}}" />
+                                </Grid>
                             </Border>
                         </StackPanel>
                     </ScrollViewer>

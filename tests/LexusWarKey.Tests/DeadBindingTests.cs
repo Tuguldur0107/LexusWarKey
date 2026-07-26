@@ -54,14 +54,20 @@ public class DeadBindingTests
     }
 
     [Fact]
-    public void Skill_keys_without_a_target_are_reported_when_position_mode_is_off()
+    public void Position_mode_cannot_be_switched_off_by_an_edited_profile()
     {
+        // The skill grid never offered a target key, so "position mode off" left every skill
+        // binding inert. The switch is gone from the UI; loading forces it back on so a
+        // hand-edited or pre-1.7 profile cannot resurrect the broken state.
         var p = Working();
         p.SkillsUsePosition = false;
         p.Skills[0].FromVk = 'C';
-        p.Skills[0].Enabled = true; // ToVk stays 0
+        p.Skills[0].Enabled = true;
 
-        Assert.Contains(RemapEngine.FindDeadBindings(p), x => x.Contains("зорилтот товч алга"));
+        p.NormaliseSlots();
+
+        Assert.True(p.SkillsUsePosition);
+        Assert.Empty(RemapEngine.FindDeadBindings(p));
     }
 
     // ---- calibration validation: clicking the same button twice used to "succeed" ----

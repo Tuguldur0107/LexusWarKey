@@ -182,13 +182,7 @@ public sealed class RemapEngine
         var boundSkills = profile.Skills.Count(m => m.ClaimsKey);
         if (boundSkills > 0)
         {
-            if (!profile.SkillsUsePosition)
-            {
-                var withoutTarget = profile.Skills.Count(m => m.ClaimsKey && m.ToVk == 0);
-                if (withoutTarget > 0)
-                    problems.Add($"{withoutTarget} чадварын товчид зорилтот товч алга — 'Байрлалаар дарах'-ыг асаана уу.");
-            }
-            else if (!profile.CommandCard.IsCalibrated)
+            if (!profile.CommandCard.IsCalibrated)
             {
                 // Saying what is wrong without saying what to do is how this sat unresolved:
                 // calibration needs the game on screen, which is not obvious from the button.

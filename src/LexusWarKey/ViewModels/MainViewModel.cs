@@ -135,7 +135,6 @@ public sealed partial class MainViewModel : ObservableObject
     private readonly KeyboardHookService _hook;
     private readonly WarKeyProfile _profile;
     private readonly System.Windows.Threading.DispatcherTimer _statusTimer;
-    private readonly System.Windows.Threading.DispatcherTimer _calibrationDone;
 
     [ObservableProperty] private bool _isEnabled;
     [ObservableProperty] private bool _onlyWhenGameFocused;
@@ -152,9 +151,7 @@ public sealed partial class MainViewModel : ObservableObject
     private bool _linkAnywayConfirmed;
     private readonly OverlayConfigSession _overlaySession;
     private OverlayWindow? _overlay;
-    private readonly MouseCaptureService _mouse = new();
 
-    [ObservableProperty] private bool _skillsUsePosition;
     [ObservableProperty] private bool _startWithWindows;
     [ObservableProperty] private bool _minimiseToTray;
 
@@ -170,7 +167,6 @@ public sealed partial class MainViewModel : ObservableObject
     public string VersionText => $"v{UpdateChecker.CurrentVersion}";
     [ObservableProperty] private string _calibrationText = "";
     [ObservableProperty] private bool _isCalibrated;
-    [ObservableProperty] private bool _isCalibrating;
 
     // ---- community activation (TierBot /warkey) ----
 
@@ -283,7 +279,6 @@ public sealed partial class MainViewModel : ObservableObject
 
         _isEnabled = _profile.Enabled;
         _onlyWhenGameFocused = _profile.OnlyWhenGameFocused;
-        _skillsUsePosition = _profile.SkillsUsePosition;
         _minimiseToTray = _profile.MinimiseToTray;
         _startWithWindows = _startup.IsEnabled();
         if (_startWithWindows)
@@ -302,15 +297,6 @@ public sealed partial class MainViewModel : ObservableObject
         _statusTimer.Tick += (_, _) => RefreshStatus();
         _statusTimer.Start();
 
-        // Holds the "✓ Тохирлоо" confirmation on screen just long enough to be read, then clears
-        // it without the user having to dismiss anything.
-        _calibrationDone = new System.Windows.Threading.DispatcherTimer { Interval = TimeSpan.FromSeconds(2) };
-        _calibrationDone.Tick += (_, _) =>
-        {
-            _calibrationDone.Stop();
-            HideCalibrationOverlay();
-            RefreshCalibration();
-        };
         RefreshStatus();
         RefreshConflicts();
         RefreshCalibration();
@@ -439,7 +425,6 @@ public sealed partial class MainViewModel : ObservableObject
     public ObservableCollection<KeyMapRow> SkillRows { get; }
     public ObservableCollection<ChatMacroRow> ChatRows { get; }
 
-    partial void OnSkillsUsePositionChanged(bool value) { _profile.SkillsUsePosition = value; Save(); RefreshCalibration(); }
     partial void OnMinimiseToTrayChanged(bool value) { _profile.MinimiseToTray = value; Save(); }
 
     partial void OnStartWithWindowsChanged(bool value)
@@ -483,109 +468,14 @@ public sealed partial class MainViewModel : ObservableObject
     {
         var card = _profile.CommandCard;
         IsCalibrated = card.IsCalibrated;
-        CalibrationText = !SkillsUsePosition
-            ? "Байрлалын горим унтраалттай — товч зүгээр л өөр товч руу шилждэг."
-            : card.IsCalibrated
-                ? $"Холбогдсон: 1-р нүд ({card.TopLeftX}, {card.TopLeftY}) → 12-р нүд ({card.BottomRightX}, {card.BottomRightY})"
-                : "Холбоогүй — тоглоом дотроо Ctrl+F6 дараад картаа тоглоомын командын карт дээр давхарлаж \"Холбох\"-ыг дар.";
-    }
-
-    [RelayCommand]
-    private void Calibrate()
-    {
-        if (IsCalibrating)
-            return;
-
-        // Without the game on screen there is no command card to click, so the two corners land
-        // on whatever window happens to be underneath — which is exactly how this used to fail.
-        // Refuse up front instead of collecting two meaningless clicks and complaining afterwards.
-        if (!_watcher.IsGameRunning())
-        {
-            CalibrationText = "Эхлээд Warcraft III-аа нээ. Тоглоом дэлгэц дээр гарсны дараа энэ товчийг дар " +
-                              "— эсвэл тоглоом дотроосоо Ctrl + F6 дараад тэндээс тохируул.";
-            return;
-        }
-
-        BeginCalibrationAttempt(attempt: 1, reason: null);
-    }
-
-    /// <summary>One pass of "click the top-left ability, then the bottom-right one".
-    ///
-    /// A misclick used to end the whole thing behind a modal dialog, leaving the user to find the
-    /// button again with the game in the way. Now the overlay simply says what went wrong and asks
-    /// again in place — it is already sitting on top of the game, which is where they are looking.</summary>
-    private void BeginCalibrationAttempt(int attempt, string? reason)
-    {
-        const int maxAttempts = 3;
-        IsCalibrating = true;
-
-        var lead = reason is null ? "" : reason + "\n";
-        ShowCalibrationOverlay($"{lead}1/2 — Командын картны ЗҮҮН ДЭЭД нүдийг дар (Move товч)");
-
-        _mouse.CaptureNextClick((x1, y1) => Application.Current?.Dispatcher.BeginInvoke(() =>
-        {
-            ShowCalibrationOverlay("2/2 — Одоо картын БАРУУН ДООД булангийн нүдийг дар (Cancel байрладаг нүд)");
-
-            _mouse.CaptureNextClick((x2, y2) => Application.Current?.Dispatcher.BeginInvoke(() =>
-            {
-                var error = CommandCard.Validate(x1, y1, x2, y2);
-                if (error is not null)
-                {
-                    if (attempt < maxAttempts)
-                    {
-                        BeginCalibrationAttempt(attempt + 1, "⚠ " + error);
-                        return;
-                    }
-
-                    IsCalibrating = false;
-                    HideCalibrationOverlay();
-                    CalibrationText = error + " Тоглоомоо дэлгэц дээр гаргаад дахин оролдоно уу.";
-                    return;
-                }
-
-                var card = _profile.CommandCard;
-                card.TopLeftX = Math.Min(x1, x2);
-                card.TopLeftY = Math.Min(y1, y2);
-                card.BottomRightX = Math.Max(x1, x2);
-                card.BottomRightY = Math.Max(y1, y2);
-                card.Overrides = null; // a fresh calibration supersedes hand-dragged rings
-                StampCardScreen();
-
-                IsCalibrating = false;
-                Save();
-                RefreshCalibration();
-                RefreshConflicts();
-
-                // Confirm where they are already looking, then get out of the way on its own.
-                ShowCalibrationOverlay("✓ Тохирлоо — чадварын товчнууд одоо ажиллана");
-                _calibrationDone.Stop();
-                _calibrationDone.Start();
-            }));
-        }));
-    }
-
-    private void ShowCalibrationOverlay(string prompt)
-    {
-        CalibrationText = prompt;
-        EnsureOverlay();
-        _overlay!.ShowSlots(
-            BuildSlots(SlotGroup.Inventory, _profile.Inventory),
-            BuildSlots(SlotGroup.Skill, _profile.Skills),
-            prompt);
-        _overlay.PlaceAt(_profile.OverlayLeft, _profile.OverlayTop);
-    }
-
-    private void HideCalibrationOverlay()
-    {
-        if (!_hook.ConfigMode)
-            _overlay?.Hide();
+        CalibrationText = card.IsCalibrated
+            ? "✓ Командын карт холбогдсон — чадварын товч ажиллана."
+            : "Командын карт холбоогүй. Тоглоом дотроо Ctrl + F6 дараад самбарын торыг тоглоомын карт дээр давхарлаж «Холбох» дар.";
     }
 
     [RelayCommand]
     private void ClearCalibration()
     {
-        _mouse.Stop();
-        IsCalibrating = false;
         _profile.CommandCard.Clear();
         Save();
         RefreshCalibration();
@@ -948,7 +838,6 @@ public sealed partial class MainViewModel : ObservableObject
     public void Shutdown()
     {
         _statusTimer.Stop();
-        _mouse.Dispose();
         _overlay?.Close();
         _hook.Dispose();
         Save();
