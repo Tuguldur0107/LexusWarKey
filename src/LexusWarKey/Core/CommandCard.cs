@@ -36,6 +36,56 @@ public sealed class CommandCard
     /// puts a ring half a button off, the user just drags it onto the button and keeps playing.</summary>
     public List<ScreenPoint?>? Overrides { get; set; }
 
+    /// <summary>The physical screen size every stored pixel above was measured on. Absolute
+    /// pixels silently break the moment the user changes resolution — a card calibrated at
+    /// 1920x1200 pointed at the middle of a 2560x1600 screen, which read as "my settings are
+    /// gone". With the origin recorded, <see cref="RescaleTo"/> moves everything to the new
+    /// screen instead. Zero = a profile from before this existed.</summary>
+    public int CapturedWidth { get; set; }
+    public int CapturedHeight { get; set; }
+
+    /// <summary>Converts every stored position onto a different screen size. Returns true when
+    /// anything actually moved. A card with no recorded origin adopts the given size as its
+    /// origin without moving — its pixels are presumed to belong to the screen it is on now.</summary>
+    public bool RescaleTo(int screenWidth, int screenHeight)
+    {
+        if (screenWidth <= 0 || screenHeight <= 0)
+            return false;
+
+        if (CapturedWidth <= 0 || CapturedHeight <= 0 || !IsCalibrated)
+        {
+            CapturedWidth = screenWidth;
+            CapturedHeight = screenHeight;
+            return false;
+        }
+
+        if (CapturedWidth == screenWidth && CapturedHeight == screenHeight)
+            return false;
+
+        var scaleX = (double)screenWidth / CapturedWidth;
+        var scaleY = (double)screenHeight / CapturedHeight;
+
+        TopLeftX = (int)Math.Round(TopLeftX * scaleX);
+        TopLeftY = (int)Math.Round(TopLeftY * scaleY);
+        BottomRightX = (int)Math.Round(BottomRightX * scaleX);
+        BottomRightY = (int)Math.Round(BottomRightY * scaleY);
+
+        if (Overrides is not null)
+        {
+            for (var i = 0; i < Overrides.Count; i++)
+            {
+                if (Overrides[i] is { } p)
+                    Overrides[i] = new ScreenPoint(
+                        (int)Math.Round(p.X * scaleX),
+                        (int)Math.Round(p.Y * scaleY));
+            }
+        }
+
+        CapturedWidth = screenWidth;
+        CapturedHeight = screenHeight;
+        return true;
+    }
+
     /// <summary>The whole card spans hundreds of pixels at any playable resolution — even at
     /// 800x600 its three column steps cover well over 100. A live profile was found "calibrated"
     /// to a 54x25 box because the old threshold (20) only guarded against clicking the same
@@ -107,6 +157,8 @@ public sealed class CommandCard
         TopLeftY = (int)Math.Round(screenHeight * 0.8125),
         BottomRightX = (int)Math.Round(screenWidth * 0.9590),
         BottomRightY = (int)Math.Round(screenHeight * 0.9581),
+        CapturedWidth = screenWidth,
+        CapturedHeight = screenHeight,
     };
 
     /// <summary>Replaces every slot position with an explicit point. Used when the user has

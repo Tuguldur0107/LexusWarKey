@@ -221,6 +221,8 @@ public sealed partial class MainViewModel : ObservableObject
                 NativeMethods.GetSystemMetrics(NativeMethods.SM_CYSCREEN));
         }
 
+        RescaleCardIfScreenChanged();
+
         _watcher = new GameWindowWatcher();
 
         var saved = Core.Activation.Validate(_profile.ActivationToken, DateTimeOffset.UtcNow);
@@ -409,6 +411,28 @@ public sealed partial class MainViewModel : ObservableObject
 
     // ---- command-card calibration (position-based skills) ----
 
+    /// <summary>Records which physical screen the card's pixels belong to.</summary>
+    private void StampCardScreen()
+    {
+        _profile.CommandCard.CapturedWidth = NativeMethods.GetSystemMetrics(NativeMethods.SM_CXSCREEN);
+        _profile.CommandCard.CapturedHeight = NativeMethods.GetSystemMetrics(NativeMethods.SM_CYSCREEN);
+    }
+
+    /// <summary>Moves the calibration onto the current screen when the resolution changed —
+    /// at startup (user changed display settings between sessions) and live (fullscreen games
+    /// switch the display mode). Absolute pixels going stale here once read as "settings lost".</summary>
+    private void RescaleCardIfScreenChanged()
+    {
+        var width = NativeMethods.GetSystemMetrics(NativeMethods.SM_CXSCREEN);
+        var height = NativeMethods.GetSystemMetrics(NativeMethods.SM_CYSCREEN);
+        if (_profile.CommandCard.RescaleTo(width, height))
+        {
+            DiagnosticLog.Write($"card rescaled to {width}x{height}");
+            Save();
+            RefreshCalibration();
+        }
+    }
+
     private void RefreshCalibration()
     {
         var card = _profile.CommandCard;
@@ -479,6 +503,7 @@ public sealed partial class MainViewModel : ObservableObject
                 card.BottomRightX = Math.Max(x1, x2);
                 card.BottomRightY = Math.Max(y1, y2);
                 card.Overrides = null; // a fresh calibration supersedes hand-dragged rings
+                StampCardScreen();
 
                 IsCalibrating = false;
                 Save();
@@ -659,6 +684,7 @@ public sealed partial class MainViewModel : ObservableObject
             card.BottomRightY = bottomRight.Y;
             // A fresh alignment supersedes any hand-dragged ring positions from the old one.
             card.Overrides = null;
+            StampCardScreen();
             Save();
             RefreshCalibration();
             RefreshConflicts();
@@ -674,6 +700,7 @@ public sealed partial class MainViewModel : ObservableObject
 
             SlotAdjustWindow.Open(_profile.CommandCard, () =>
             {
+                StampCardScreen();
                 Save();
                 RefreshCalibration();
                 RenderOverlayPrompt("✓ Нүд бүрийн байрлал хадгалагдлаа — товч тэр цагирган дээрээ дарна.");
@@ -796,6 +823,8 @@ public sealed partial class MainViewModel : ObservableObject
 
     private void RefreshStatus()
     {
+        RescaleCardIfScreenChanged();
+
         var focused = _watcher.IsGameFocused();
         StatusIsLive = IsEnabled && (focused || !OnlyWhenGameFocused);
 
