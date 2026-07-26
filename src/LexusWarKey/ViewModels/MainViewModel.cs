@@ -817,12 +817,11 @@ public sealed partial class MainViewModel : ObservableObject
         var problems = new List<string>();
 
         if (!IsActivated)
-            problems.Add("Идэвхжүүлээгүй — Lexus Discord сервер дээр /warkey гэж бичээд ирсэн кодоо дээрх талбарт буулгана уу. Товч солилт идэвхжтэл ажиллахгүй.");
+            problems.Add($"Идэвхжүүлээгүй — Lexus Discord сервер дээр \"{ActivationCommand}\" гэж бичээд ирсэн кодоо дээрх талбарт буулгаарай.");
         else if (ActivationDaysLeft is <= 5 and { } daysLeft)
-            problems.Add($"Идэвхжүүлэлт {daysLeft} хоногийн дараа дуусна — Discord дээр \"{ActivationCommand}\" гэж бичээд шинэ код аваарай.");
+            problems.Add($"Ашиглах хугацаа {daysLeft} хоногийн дараа дуусна — Lexus Discord server дээр \"{ActivationCommand}\" гэж бичээд хугацаагаа сунгаарай.");
         else if (ActivationIsLegacy)
-            problems.Add($"Таны код энэ компьютерт холбогдоогүй хуучин хэлбэрийнх — бусад руу тарах эрсдэлтэй. " +
-                         $"Discord дээр \"{ActivationCommand}\" гэж бичээд шинэ код аваарай.");
+            problems.Add($"Lexus Discord server дээр \"{ActivationCommand}\" гэж бичээд кодоо шинэчлээрэй.");
 
         // Anything wrong with the profile file itself belongs at the top: it explains why the
         // bindings below may not be the ones the user set, and it must never scroll past unseen.

@@ -80,7 +80,7 @@ public static class Activation
         var userId = pieces[0];
         var expires = DateTimeOffset.FromUnixTimeSeconds(expiryUnix);
         if (expires <= nowUtc)
-            return new ActivationResult(false, userId, expires, "Кодын хугацаа дууссан — Discord дээр /warkey гэж бичээд шинийг аваарай.");
+            return new ActivationResult(false, userId, expires, $"Ашиглах хугацаа дууссан байна — Lexus Discord server дээр \"/warkey {thisMachine}\" гэж бичээд хугацаагаа сунгаарай.");
 
         // Signature and expiry are fine, so this is a genuine code — it just belongs to a
         // different computer. Say so precisely: the usual cause is a shared code, but it is
@@ -89,8 +89,8 @@ public static class Activation
             && !boundMachine.Equals(thisMachine, StringComparison.OrdinalIgnoreCase))
         {
             return new ActivationResult(false, userId, expires,
-                $"Энэ код өөр компьютерт олгогдсон байна. Энэ компьютерийн код: {thisMachine} — " +
-                "Discord дээр /warkey гэж бичээд үүнийг өгч шинэ код аваарай.");
+                $"Энэ код өөр компьютерийнх байна — Lexus Discord server дээр \"/warkey {thisMachine}\" " +
+                "гэж бичээд энэ компьютерийн кодоо аваарай.");
         }
 
         return new ActivationResult(true, userId, expires, null, IsLegacy: boundMachine is null);

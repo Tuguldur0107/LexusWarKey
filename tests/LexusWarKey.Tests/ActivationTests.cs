@@ -132,7 +132,7 @@ public class ActivationTests
         var result = Activation.Validate(shared, Now, PublicKey, ThisMachine);
 
         Assert.False(result.Valid);
-        Assert.Contains("өөр компьютерт", result.Error);
+        Assert.Contains("өөр компьютерийнх", result.Error);
         Assert.Contains(ThisMachine, result.Error); // tells them what to ask the bot for
     }
 
