@@ -133,6 +133,7 @@ public sealed partial class MainViewModel : ObservableObject
     private readonly GameWindowWatcher _watcher;
     private readonly RemapEngine _engine;
     private readonly KeyboardHookService _hook;
+    private readonly MouseHookService _mouseHook;
     private readonly WarKeyProfile _profile;
     private readonly System.Windows.Threading.DispatcherTimer _statusTimer;
 
@@ -273,6 +274,11 @@ public sealed partial class MainViewModel : ObservableObject
         _hook = new KeyboardHookService(_engine);
         _hook.OverlayToggleRequested += () => Application.Current?.Dispatcher.BeginInvoke(ToggleOverlay);
         _hook.ConfigKeyPressed += vk => Application.Current?.Dispatcher.BeginInvoke(() => OnOverlayKey(vk));
+
+        // Wheel and side buttons run through the same decision path as keys. The hook is only
+        // installed while something is actually bound to the mouse — a low-level mouse hook
+        // sees every movement report, and a player who binds nothing should pay nothing.
+        _mouseHook = new MouseHookService(_engine, _hook.HandleMouseControl);
         _overlaySession = new OverlayConfigSession(_profile, () => { Save(); RefreshRowsFromProfile(); });
 
         _isEnabled = _profile.Enabled;
@@ -530,6 +536,10 @@ public sealed partial class MainViewModel : ObservableObject
     }
 
     /// <summary>Called from the window's PreviewKeyDown. Returns true when the press was consumed.</summary>
+    /// <summary>Feeds a mouse control into an open key-capture, so the wheel and side buttons
+    /// can be bound the same way a key is — pressed, not picked from a list.</summary>
+    public bool HandleCaptureMouse(int vk) => HandleCaptureKey(vk);
+
     public bool HandleCaptureKey(int vk)
     {
         if (_capture is null)
@@ -727,8 +737,14 @@ public sealed partial class MainViewModel : ObservableObject
         RefreshConflicts();
     }
 
+    /// <summary>Installs or drops the mouse hook to match whether the profile binds anything
+    /// to the mouse. Called wherever bindings can change.</summary>
+    private void SyncMouseHook() => _mouseHook.SetActive(_engine.AnyMouseControlBound());
+
     private void RefreshConflicts()
     {
+        SyncMouseHook();
+
         var problems = new List<string>();
 
         if (!IsActivated)
@@ -837,6 +853,7 @@ public sealed partial class MainViewModel : ObservableObject
     {
         _statusTimer.Stop();
         _overlay?.Close();
+        _mouseHook.Dispose();
         _hook.Dispose();
         Save();
     }

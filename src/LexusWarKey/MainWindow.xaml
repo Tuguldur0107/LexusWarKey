@@ -344,6 +344,8 @@
                                                Text="Доод эгнээ (9–12) = үндсэн чадварууд. LoD-ийн 5, 6 дахь чадвар дунд эгнээний баруун хоёр нүдэнд (7–8) ордог." />
                                     <TextBlock Style="{StaticResource Dim}" Margin="0,6,0,0" TextWrapping="Wrap"
                                                Text="Товчоо дарахдаа Alt барих = Auto-Cast, Ctrl барих = тэр чадварыг сурах." />
+                                    <TextBlock Style="{StaticResource Dim}" Margin="0,6,0,0" TextWrapping="Wrap"
+                                               Text="Хулганы дугуй (↑/↓), дунд товч, хажуугийн 4/5 товчийг ч оноож болно — нүд дээр дараад тэр товчоо дарахад л хангалттай. Оноогоогүй бол дугуй хэвээрээ камер ойртуулна." />
                                 </StackPanel>
                             </Border>
 

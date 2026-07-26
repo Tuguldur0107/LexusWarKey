@@ -10,6 +10,18 @@ public static class VirtualKeys
     /// <summary>Mouse buttons are virtual keys too — used to tell whether the player is
     /// mid-drag before an injected click would cut their drag short.</summary>
     public const int LButton = 0x01, RButton = 0x02;
+
+    /// <summary>Bindable mouse controls. The three buttons are real virtual-key codes that a
+    /// keyboard hook never produces, so they slot into the same map without colliding. The
+    /// wheel has no virtual key at all, so it gets codes above the byte range — a keyboard can
+    /// never report those either. Left and right buttons are deliberately NOT bindable: the
+    /// game needs them, and the app clicks with them.</summary>
+    public const int MButton = 0x04, XButton1 = 0x05, XButton2 = 0x06;
+    public const int WheelUp = 0x101, WheelDown = 0x102;
+
+    /// <summary>True for anything that arrives from the mouse rather than the keyboard.</summary>
+    public static bool IsMouse(int vk) =>
+        vk is MButton or XButton1 or XButton2 or WheelUp or WheelDown;
     public const int LShift = 0xA0, RShift = 0xA1, LControl = 0xA2, RControl = 0xA3, LAlt = 0xA4, RAlt = 0xA5;
 
     public const int NumPad0 = 0x60, NumPad1 = 0x61, NumPad2 = 0x62, NumPad3 = 0x63, NumPad4 = 0x64;
@@ -35,6 +47,8 @@ public static class VirtualKeys
         var map = new Dictionary<int, string>
         {
             [Back] = "Backspace", [Tab] = "Tab", [Enter] = "Enter", [Escape] = "Esc", [Space] = "Space",
+            [MButton] = "Дунд товч", [XButton1] = "Хулга 4", [XButton2] = "Хулга 5",
+            [WheelUp] = "Дугуй ↑", [WheelDown] = "Дугуй ↓",
             [Shift] = "Shift", [Control] = "Ctrl", [Alt] = "Alt",
             [LShift] = "LShift", [RShift] = "RShift", [LControl] = "LCtrl", [RControl] = "RCtrl",
             [LAlt] = "LAlt", [RAlt] = "RAlt",
@@ -56,6 +70,11 @@ public static class VirtualKeys
         list.Add((Space, "Space"));
         list.Add((Tab, "Tab"));
         list.Add((Back, "Backspace"));
+        list.Add((WheelUp, "Дугуй ↑"));
+        list.Add((WheelDown, "Дугуй ↓"));
+        list.Add((MButton, "Дунд товч"));
+        list.Add((XButton1, "Хулга 4"));
+        list.Add((XButton2, "Хулга 5"));
         for (var i = 0; i < 12; i++) list.Add((F1 + i, $"F{i + 1}"));
         for (var i = 0; i <= 9; i++) list.Add((NumPad0 + i, $"Num{i}"));
         foreach (var (vk, name) in new[] { (0xBA, ";"), (0xBC, ","), (0xBE, "."), (0xBF, "/"), (0xDB, "["), (0xDD, "]"), (0xDE, "'"), (0xC0, "`") })

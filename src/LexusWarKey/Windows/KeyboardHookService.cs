@@ -111,6 +111,104 @@ public sealed class KeyboardHookService : IDisposable
         _hook = IntPtr.Zero;
     }
 
+    /// <summary>Carries out a decision. Returns true when the original input was consumed.
+    /// Shared by the keyboard and mouse hooks so a wheel notch behaves exactly like a key —
+    /// there is one set of rules for auto-repeat, debouncing and macro serialisation, not two.</summary>
+    private bool Dispatch(RemapDecision decision, int vk, bool isDown)
+    {
+        var isUp = !isDown;
+
+        switch (decision.Action)
+        {
+            case RemapAction.SendKey:
+                InputSender.SendKey(decision.SendVk, isDown);
+                return true; // swallow the original
+
+            case RemapAction.SendChat when isDown:
+                // Auto-repeat must not restart the macro, and two macros must never
+                // interleave — the second would type into the middle of the first's line.
+                if (!_actionHeld.Add(vk))
+                    return true;
+                if (Interlocked.CompareExchange(ref _macroInFlight, 1, 0) != 0)
+                    return true;
+                // Armed here, not in the worker: the pool can lag, and a second key in
+                // that gap used to slip past the SuspendedForTyping check entirely.
+                _engine.SuspendedForTyping = true;
+                var lines = decision.ChatLines ?? Array.Empty<string>();
+                var allies = decision.AlliesOnly;
+                // Never type inside the hook: SendInput here would deadlock the input queue.
+                ThreadPool.QueueUserWorkItem(_ => SendChatLines(lines, allies));
+                return true;
+
+            case RemapAction.ClickSlot when decision.ClickAt is { } point:
+                if (!_actionHeld.Add(vk))
+                    return true; // OS auto-repeat of a held key — one press, one click
+
+                // Debounce only: keyed on the KEY, not the position, and short enough to
+                // absorb a contact bounce and nothing else. Earlier filters keyed on the card
+                // POSITION, and at 250ms then 35ms both ate deliberate second casts.
+                var now = Environment.TickCount64;
+                if (_lastPressTicks.TryGetValue(vk, out var previous)
+                    && now - previous < DebounceMs)
+                {
+                    DiagnosticLog.Write($"click SUPPRESSED vk={vk} ({now - previous}ms since last)");
+                    return true;
+                }
+                _lastPressTicks[vk] = now;
+
+                // Clicking involves sleeps; doing it inside the hook would freeze input.
+                if (!_clickQueue.TryAdd((point.X, point.Y, decision.RightClick)))
+                    DiagnosticLog.Write($"click DROPPED vk={vk}: queue full ({_clickQueue.Count})");
+                return true;
+
+            case RemapAction.ClickSlot:
+                if (isUp)
+                    _actionHeld.Remove(vk);
+                return true; // key-up (or an uncalibrated card): swallow, do nothing
+
+            case RemapAction.SendChat:
+                if (isUp)
+                    _actionHeld.Remove(vk);
+                return true; // swallow the matching key-up too
+
+            default:
+                // Only the key-UP releases the latch. Clearing it on a passed-through
+                // key-DOWN re-armed a still-held macro key the moment the macro finished,
+                // and a held F5 then re-sent the whole block once a second.
+                if (isUp)
+                    _actionHeld.Remove(vk);
+                return false;
+        }
+    }
+
+    /// <summary>Runs a bound mouse control through exactly the same path as a key. Called from
+    /// the mouse hook thread, so it does no work of its own beyond queueing.</summary>
+    public void HandleMouseControl(int vk, bool isDown)
+    {
+        try
+        {
+            if (ConfigMode)
+            {
+                if (isDown)
+                    ConfigKeyPressed?.Invoke(vk);
+                return;
+            }
+
+            var ctrl = InputSender.IsKeyHeld(VirtualKeys.Control);
+            var alt = InputSender.IsKeyHeld(VirtualKeys.Alt);
+            Dispatch(_engine.Decide(vk, isDown, ctrl, alt), vk, isDown);
+
+            // A wheel notch has no release of its own, so close the press immediately or the
+            // auto-repeat latch would block every notch after the first.
+            if (isDown && vk is VirtualKeys.WheelUp or VirtualKeys.WheelDown)
+                _actionHeld.Remove(vk);
+        }
+        catch
+        {
+            // never let a mouse binding take the app down
+        }
+    }
+
     private IntPtr HookCallback(int nCode, IntPtr wParam, IntPtr lParam)
     {
         // Proof of life for ReArmIfSilent — recorded before any filtering so even keys we
@@ -185,68 +283,9 @@ public sealed class KeyboardHookService : IDisposable
             _engine.ObserveKey(vk, isDown);
 
             var decision = _engine.Decide(vk, isDown, ctrl, alt);
-            switch (decision.Action)
-            {
-                case RemapAction.SendKey:
-                    InputSender.SendKey(decision.SendVk, isDown);
-                    return 1; // swallow the original
-
-                case RemapAction.SendChat when isDown:
-                    // Auto-repeat must not restart the macro, and two macros must never
-                    // interleave — the second would type into the middle of the first's line.
-                    if (!_actionHeld.Add(vk))
-                        return 1;
-                    if (Interlocked.CompareExchange(ref _macroInFlight, 1, 0) != 0)
-                        return 1;
-                    // Armed here, not in the worker: the pool can lag, and a second key in
-                    // that gap used to slip past the SuspendedForTyping check entirely.
-                    _engine.SuspendedForTyping = true;
-                    var lines = decision.ChatLines ?? Array.Empty<string>();
-                    var allies = decision.AlliesOnly;
-                    // Never type inside the hook: SendInput here would deadlock the input queue.
-                    ThreadPool.QueueUserWorkItem(_ => SendChatLines(lines, allies));
-                    return 1;
-
-                case RemapAction.ClickSlot when decision.ClickAt is { } point:
-                    if (!_actionHeld.Add(vk))
-                        return 1; // OS auto-repeat of a held key — one press, one click
-
-                    // Debounce only: keyed on the KEY, not the position, and short enough to
-                    // absorb a contact bounce and nothing else. The old filter was 250ms keyed
-                    // on position, so a deliberate second cast of one ability was deleted
-                    // while alternating two abilities defeated it entirely.
-                    var now = Environment.TickCount64;
-                    if (_lastPressTicks.TryGetValue(vk, out var previous)
-                        && now - previous < DebounceMs)
-                    {
-                        DiagnosticLog.Write($"click SUPPRESSED vk={vk} ({now - previous}ms since last)");
-                        return 1;
-                    }
-                    _lastPressTicks[vk] = now;
-
-                    // Clicking involves sleeps; doing it inside the hook would freeze input.
-                    if (!_clickQueue.TryAdd((point.X, point.Y, decision.RightClick)))
-                        DiagnosticLog.Write($"click DROPPED vk={vk}: queue full ({_clickQueue.Count})");
-                    return 1;
-
-                case RemapAction.ClickSlot:
-                    if (isUp)
-                        _actionHeld.Remove(vk);
-                    return 1; // key-up (or an uncalibrated card): swallow, do nothing
-
-                case RemapAction.SendChat:
-                    if (isUp)
-                        _actionHeld.Remove(vk);
-                    return 1; // swallow the matching key-up too
-
-                default:
-                    // Only the key-UP releases the latch. Clearing it on a passed-through
-                    // key-DOWN re-armed a still-held macro key the moment the macro finished,
-                    // and a held F5 then re-sent the whole block once a second.
-                    if (isUp)
-                        _actionHeld.Remove(vk);
-                    return NativeMethods.CallNextHookEx(_hook, nCode, wParam, lParam);
-            }
+            return Dispatch(decision, vk, isDown)
+                ? 1
+                : NativeMethods.CallNextHookEx(_hook, nCode, wParam, lParam);
         }
         catch
         {

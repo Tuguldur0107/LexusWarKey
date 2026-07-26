@@ -16,6 +16,10 @@ public partial class MainWindow : Window
         InitializeComponent();
         // PreviewKeyDown so Tab/Space/arrows reach us before WPF turns them into focus moves.
         PreviewKeyDown += OnPreviewKeyDown;
+        // The wheel and the side buttons are bindable too, so a capture in progress has to
+        // accept them from the window as well as from the game.
+        PreviewMouseWheel += OnPreviewMouseWheel;
+        PreviewMouseDown += OnPreviewMouseDown;
         SourceInitialized += (_, _) => Windows.WindowChrome.UseDarkTitleBar(this);
         Loaded += (_, _) => _tray = new TrayIcon(this, ExitForReal);
     }
@@ -30,6 +34,33 @@ public partial class MainWindow : Window
         var key = e.Key == Key.System ? e.SystemKey : e.Key;
         var vk = KeyInterop.VirtualKeyFromKey(key);
         if (vm.HandleCaptureKey(vk))
+            e.Handled = true;
+    }
+
+    private void OnPreviewMouseWheel(object sender, MouseWheelEventArgs e)
+    {
+        if (Vm is not { } vm || e.Delta == 0)
+            return;
+        var vk = e.Delta > 0 ? Core.VirtualKeys.WheelUp : Core.VirtualKeys.WheelDown;
+        if (vm.HandleCaptureMouse(vk))
+            e.Handled = true;
+    }
+
+    private void OnPreviewMouseDown(object sender, MouseButtonEventArgs e)
+    {
+        if (Vm is not { } vm)
+            return;
+
+        // Left and right stay out of it: they are how the user works this window, and the
+        // game needs them.
+        var vk = e.ChangedButton switch
+        {
+            MouseButton.Middle => Core.VirtualKeys.MButton,
+            MouseButton.XButton1 => Core.VirtualKeys.XButton1,
+            MouseButton.XButton2 => Core.VirtualKeys.XButton2,
+            _ => 0,
+        };
+        if (vk != 0 && vm.HandleCaptureMouse(vk))
             e.Handled = true;
     }
 

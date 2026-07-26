@@ -96,6 +96,28 @@ public sealed class RemapEngine
             SetChatOpen(false);
     }
 
+    /// <summary>Does the profile bind this mouse control to anything? The mouse hook asks
+    /// before swallowing an event, so an unbound wheel keeps zooming the camera.
+    ///
+    /// It deliberately ignores whether the app is enabled or the game is focused: those decide
+    /// what an event DOES, and are re-checked in <see cref="Decide"/>. Here they would only
+    /// make the hook let a claimed control through to the game as a raw wheel spin.</summary>
+    public bool ClaimsMouseControl(int vk)
+    {
+        var profile = _profile();
+        return profile.Inventory.Concat(profile.Skills).Any(m => m.ClaimsKey && m.FromVk == vk)
+               || profile.ChatMacros.Any(m => m.IsUsable && m.HotkeyVk == vk);
+    }
+
+    /// <summary>True when anything at all is bound to the mouse, so the caller knows whether
+    /// the mouse hook is worth installing.</summary>
+    public bool AnyMouseControlBound()
+    {
+        var profile = _profile();
+        return profile.Inventory.Concat(profile.Skills).Any(m => m.ClaimsKey && VirtualKeys.IsMouse(m.FromVk))
+               || profile.ChatMacros.Any(m => m.IsUsable && VirtualKeys.IsMouse(m.HotkeyVk));
+    }
+
     /// <summary>Forces the tracker shut. The app calls this whenever it cannot be sure any more —
     /// erring towards "closed" costs one garbled message, erring towards "open" costs every key.</summary>
     public void ResetChatState() => SetChatOpen(false);

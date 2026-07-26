@@ -87,6 +87,11 @@ internal static class NativeMethods
 
     internal const int WH_MOUSE_LL = 14;
     internal const int WM_LBUTTONDOWN = 0x0201;
+    internal const int WM_MOUSEMOVE = 0x0200;
+    internal const int WM_MBUTTONDOWN = 0x0207, WM_MBUTTONUP = 0x0208;
+    internal const int WM_MOUSEWHEEL = 0x020A;
+    internal const int WM_XBUTTONDOWN = 0x020B, WM_XBUTTONUP = 0x020C;
+    internal const uint LLMHF_INJECTED = 0x00000001;
     internal const uint INPUT_MOUSE = 0;
     internal const uint MOUSEEVENTF_LEFTDOWN = 0x0002, MOUSEEVENTF_LEFTUP = 0x0004;
     internal const uint MOUSEEVENTF_RIGHTDOWN = 0x0008, MOUSEEVENTF_RIGHTUP = 0x0010;
