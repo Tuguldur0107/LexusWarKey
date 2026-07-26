@@ -58,6 +58,19 @@ public partial class OverlayWindow : Window
     /// <summary>Raised when the user asks to SEE where the twelve slots will click.</summary>
     public event Action? MarkersRequested;
 
+    /// <summary>The ring-adjust controls, which live on this panel rather than in a window of
+    /// their own — adjusting the rings should not put a third surface on top of the game.</summary>
+    public event Action? AdjustSaveRequested;
+    public event Action? AdjustTidyRequested;
+    public event Action? AdjustCancelRequested;
+
+    /// <summary>Swaps the button row between its normal controls and the ring-adjust ones.</summary>
+    public void SetAdjusting(bool adjusting)
+    {
+        NormalButtons.Visibility = adjusting ? Visibility.Collapsed : Visibility.Visible;
+        AdjustButtons.Visibility = adjusting ? Visibility.Visible : Visibility.Collapsed;
+    }
+
     public void ShowSlots(IReadOnlyList<OverlaySlot> inventory, IReadOnlyList<OverlaySlot> skills, string prompt)
     {
         InventoryList.ItemsSource = inventory;
@@ -133,6 +146,24 @@ public partial class OverlayWindow : Window
     {
         e.Handled = true;
         MarkersRequested?.Invoke();
+    }
+
+    private void AdjustSave_Click(object sender, MouseButtonEventArgs e)
+    {
+        e.Handled = true;
+        AdjustSaveRequested?.Invoke();
+    }
+
+    private void AdjustTidy_Click(object sender, MouseButtonEventArgs e)
+    {
+        e.Handled = true;
+        AdjustTidyRequested?.Invoke();
+    }
+
+    private void AdjustCancel_Click(object sender, MouseButtonEventArgs e)
+    {
+        e.Handled = true;
+        AdjustCancelRequested?.Invoke();
     }
 
     /// <summary>Physical screen centre of a command-card cell. WPF under PerMonitorV2 returns

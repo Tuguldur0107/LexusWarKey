@@ -677,6 +677,14 @@ public sealed partial class MainViewModel : ObservableObject
             RefreshConflicts();
             RenderOverlayPrompt("✓ Холбогдлоо — 📍 Шалгах дарж цагираг бүр өөрийн нүдэн дээрээ буусныг шалгаарай. Ctrl+F6 = хаах.");
         };
+        _overlay.AdjustSaveRequested += () => SlotAdjustWindow.Current?.SavePositions();
+        _overlay.AdjustTidyRequested += () => SlotAdjustWindow.Current?.TidyRings();
+        _overlay.AdjustCancelRequested += () =>
+        {
+            SlotAdjustWindow.Current?.Close();
+            _overlay?.SetAdjusting(false);
+            RenderOverlayPrompt("");
+        };
         _overlay.MarkersRequested += () =>
         {
             if (!_profile.CommandCard.IsCalibrated)
@@ -690,8 +698,11 @@ public sealed partial class MainViewModel : ObservableObject
                 StampCardScreen();
                 Save();
                 RefreshCalibration();
-                RenderOverlayPrompt("✓ Нүд бүрийн байрлал хадгалагдлаа — товч тэр цагирган дээрээ дарна.");
+                _overlay?.SetAdjusting(false);
+                RenderOverlayPrompt("✓ Байрлал хадгалагдлаа");
             });
+            _overlay?.SetAdjusting(true);
+            RenderOverlayPrompt("Цагирагаа зөв товчин дээр чирээд Хадгална уу");
         };
     }
 
@@ -707,6 +718,8 @@ public sealed partial class MainViewModel : ObservableObject
     private void CloseOverlay()
     {
         _hook.ConfigMode = false;
+        SlotAdjustWindow.Current?.Close();
+        _overlay?.SetAdjusting(false);
         _overlay?.Hide();
     }
 

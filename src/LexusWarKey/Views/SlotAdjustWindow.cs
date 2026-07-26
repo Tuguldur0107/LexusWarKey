@@ -101,7 +101,6 @@ public sealed class SlotAdjustWindow : Window
             _canvas.Children.Add(ring);
         }
 
-        _canvas.Children.Add(BuildToolbar());
     }
 
     private Grid BuildRing(int slot)
@@ -148,84 +147,6 @@ public sealed class SlotAdjustWindow : Window
         return ring;
     }
 
-    private FrameworkElement BuildToolbar()
-    {
-        var save = ToolbarButton("💾 Хадгалах", "#2E5C34");
-        save.MouseLeftButtonDown += (_, e) =>
-        {
-            e.Handled = true;
-            SavePositions();
-        };
-
-        var tidy = ToolbarButton("▦ Цэгцлэх", "#2E4A5C");
-        tidy.MouseLeftButtonDown += (_, e) =>
-        {
-            e.Handled = true;
-            TidyRings();
-        };
-
-        var cancel = ToolbarButton("✕ Болих", "#5C2E2E");
-        cancel.MouseLeftButtonDown += (_, e) =>
-        {
-            e.Handled = true;
-            Close();
-        };
-
-        var bar = new Border
-        {
-            Background = new SolidColorBrush(Color.FromArgb(0xCC, 0, 0, 0)),
-            BorderBrush = new SolidColorBrush(Color.FromArgb(0x66, 0xFF, 0xFF, 0xFF)),
-            BorderThickness = new Thickness(1),
-            CornerRadius = new CornerRadius(10),
-            Padding = new Thickness(14, 10, 14, 10),
-            Child = new StackPanel
-            {
-                Children =
-                {
-                    new TextBlock
-                    {
-                        Text = "Цагираг бүр = тэр нүдийг чухам хаана дарахыг заана. Буруу байвал чирээд зөв товчин дээр нь тавь. " +
-                               "▦ Цэгцлэх = бүгдийг жигд тор болгоно.",
-                        Foreground = Brushes.White,
-                        FontSize = 12,
-                        Margin = new Thickness(0, 0, 0, 8),
-                        MaxWidth = 460,
-                        TextWrapping = TextWrapping.Wrap,
-                    },
-                    new StackPanel { Orientation = Orientation.Horizontal, Children = { save, tidy, cancel } },
-                },
-            },
-        };
-
-        // Top-centre: far from the bottom-right card, so it never sits on what is being adjusted.
-        // ActualWidth, not Width — the window is sized natively with MoveWindow, so Width is NaN.
-        bar.Loaded += (_, _) =>
-        {
-            Canvas.SetLeft(bar, (ActualWidth - bar.ActualWidth) / 2);
-            Canvas.SetTop(bar, 32);
-        };
-        return bar;
-    }
-
-    private static Border ToolbarButton(string text, string background)
-    {
-        return new Border
-        {
-            Background = (SolidColorBrush)new BrushConverter().ConvertFromString(background)!,
-            CornerRadius = new CornerRadius(6),
-            Padding = new Thickness(16, 8, 16, 8),
-            Margin = new Thickness(0, 0, 8, 0),
-            Cursor = Cursors.Hand,
-            Child = new TextBlock
-            {
-                Text = text,
-                Foreground = Brushes.White,
-                FontSize = 13,
-                FontWeight = FontWeights.SemiBold,
-            },
-        };
-    }
-
     /// <summary>Current ring centres as physical screen points, or null if any ring is missing.</summary>
     private List<ScreenPoint>? ReadRingPositions()
     {
@@ -247,9 +168,13 @@ public sealed class SlotAdjustWindow : Window
         return points;
     }
 
+    /// <summary>The adjuster currently on screen, or null. Its controls live on the overlay
+    /// panel, so something has to hold the reference between them.</summary>
+    public static SlotAdjustWindow? Current => _current;
+
     /// <summary>Snaps every ring onto the even grid the hand placement was aiming at, live —
     /// so the user sees the tidy result before deciding to save it.</summary>
-    private void TidyRings()
+    public void TidyRings()
     {
         if (ReadRingPositions() is not { } points)
             return;
@@ -267,7 +192,7 @@ public sealed class SlotAdjustWindow : Window
         }
     }
 
-    private void SavePositions()
+    public void SavePositions()
     {
         if (ReadRingPositions() is not { } points)
         {
