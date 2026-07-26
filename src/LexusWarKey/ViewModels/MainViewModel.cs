@@ -190,6 +190,19 @@ public sealed partial class MainViewModel : ObservableObject
     [ObservableProperty] private string _activationStatus = "";
     private DateTimeOffset? _activationExpiry;
 
+    /// <summary>Plain-language state of the current code, for the always-visible Help panel.</summary>
+    public string ActivationSummary => !IsActivated
+        ? "Идэвхжүүлээгүй байна."
+        : ActivationDaysLeft is { } days
+            ? $"Идэвхтэй — {days} хоног үлдсэн." + (ActivationIsLegacy ? " Кодоо шинэчлэхийг зөвлөж байна." : "")
+            : "Идэвхтэй.";
+
+    public string ActivationHeading => !IsActivated
+        ? "Идэвхжүүлэлт шаардлагатай"
+        : ActivationIsLegacy
+            ? "Кодоо шинэчилнэ үү"
+            : "Ашиглах хугацаа дуусах гэж байна";
+
     [RelayCommand]
     private void Activate()
     {
@@ -209,6 +222,26 @@ public sealed partial class MainViewModel : ObservableObject
         Save();
         RefreshStatus();
         RefreshConflicts();
+    }
+
+    /// <summary>Whether the activation box should be on screen. Not simply "unactivated": a
+    /// member with a legacy or nearly-expired code is being ASKED for a new one, and hiding
+    /// the only place to paste it is how this first went wrong.</summary>
+    public bool NeedsActivationAttention =>
+        !IsActivated || ActivationIsLegacy || ActivationDaysLeft is <= 5;
+
+    partial void OnIsActivatedChanged(bool value)
+    {
+        OnPropertyChanged(nameof(NeedsActivationAttention));
+        OnPropertyChanged(nameof(ActivationHeading));
+        OnPropertyChanged(nameof(ActivationSummary));
+    }
+
+    partial void OnActivationIsLegacyChanged(bool value)
+    {
+        OnPropertyChanged(nameof(NeedsActivationAttention));
+        OnPropertyChanged(nameof(ActivationHeading));
+        OnPropertyChanged(nameof(ActivationSummary));
     }
 
     /// <summary>Days of activation left, or null when not activated. Used for the reminder.</summary>
@@ -846,6 +879,9 @@ public sealed partial class MainViewModel : ObservableObject
         // Second line of defence for the chat tracker: if the game is not in front there is
         // no chat line, so anything the tracker believes is stale. Without this a mistracked
         // Enter would leave the app permanently, and invisibly, doing nothing.
+        OnPropertyChanged(nameof(NeedsActivationAttention));
+        OnPropertyChanged(nameof(ActivationSummary));
+
         if (IsActivated && _activationExpiry is { } activeUntil && activeUntil <= DateTimeOffset.UtcNow)
         {
             // The code ran out while the app was open — same treatment as never activated.
