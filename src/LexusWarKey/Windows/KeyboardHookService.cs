@@ -28,15 +28,15 @@ public sealed class KeyboardHookService : IDisposable
 
     /// <summary>All clicks run through one thread, one after another. On the ThreadPool two
     /// rapid casts could interleave their cursor excursions — the cursor ping-ponged and both
-    /// clicks could land wrong. Bounded small: a queue of stale clicks is worse than a drop.</summary>
-    private readonly System.Collections.Concurrent.BlockingCollection<(int X, int Y, bool Right)> _clickQueue = new(4);
+    /// clicks could land wrong. Twelve deep: at ~20ms per excursion that is a quarter second
+    /// of combo, and a dropped finisher is indistinguishable from a misfire.</summary>
+    private readonly System.Collections.Concurrent.BlockingCollection<(int X, int Y, bool Right)> _clickQueue = new(12);
 
-    /// <summary>Spamming a skill key is normal play, but the first click already armed the
-    /// ability — every repeat within this window would only steal the cursor again for no
-    /// game effect. The log showed nine identical clicks in four seconds doing exactly that.</summary>
-    private const int RepeatClickWindowMs = 250;
-    private int _lastClickX, _lastClickY;
-    private long _lastClickTicks;
+    /// <summary>Contact-bounce debounce, per key. Deliberately far below any human re-cast
+    /// interval: an earlier 250ms filter keyed on the CARD POSITION was deleting real second
+    /// casts, which is one of the "my ability didn't fire" reports.</summary>
+    private const int DebounceMs = 35;
+    private readonly Dictionary<int, long> _lastPressTicks = new();
 
     public KeyboardHookService(RemapEngine engine)
     {
@@ -207,19 +207,22 @@ public sealed class KeyboardHookService : IDisposable
                     if (!_actionHeld.Add(vk))
                         return 1; // OS auto-repeat of a held key — one press, one click
 
-                    // Spam-tapping the same skill: the button is already armed, a second
-                    // click changes nothing in the game and only yanks the cursor again.
+                    // Debounce only: keyed on the KEY, not the position, and short enough to
+                    // absorb a contact bounce and nothing else. The old filter was 250ms keyed
+                    // on position, so a deliberate second cast of one ability was deleted
+                    // while alternating two abilities defeated it entirely.
                     var now = Environment.TickCount64;
-                    if (point.X == _lastClickX && point.Y == _lastClickY
-                        && now - _lastClickTicks < RepeatClickWindowMs)
+                    if (_lastPressTicks.TryGetValue(vk, out var previous)
+                        && now - previous < DebounceMs)
+                    {
+                        DiagnosticLog.Write($"click SUPPRESSED vk={vk} ({now - previous}ms since last)");
                         return 1;
-                    _lastClickX = point.X;
-                    _lastClickY = point.Y;
-                    _lastClickTicks = now;
+                    }
+                    _lastPressTicks[vk] = now;
 
                     // Clicking involves sleeps; doing it inside the hook would freeze input.
-                    // TryAdd: with four clicks already waiting, a fifth is stale — drop it.
-                    _clickQueue.TryAdd((point.X, point.Y, decision.RightClick));
+                    if (!_clickQueue.TryAdd((point.X, point.Y, decision.RightClick)))
+                        DiagnosticLog.Write($"click DROPPED vk={vk}: queue full ({_clickQueue.Count})");
                     return 1;
 
                 case RemapAction.ClickSlot:
@@ -256,6 +259,18 @@ public sealed class KeyboardHookService : IDisposable
     {
         try
         {
+            // Mid-drag-select, an injected button-up would end the player's drag on the command
+            // card and their physical release would then orphan a second up — a corrupted
+            // selection that lasts for seconds. Wait the drag out; a held button is brief.
+            var waited = 0;
+            while (InputSender.IsKeyHeld(VirtualKeys.LButton) && waited < 400)
+            {
+                Thread.Sleep(20);
+                waited += 20;
+            }
+            if (waited > 0)
+                DiagnosticLog.Write($"click deferred {waited}ms: mouse button held");
+
             var watch = System.Diagnostics.Stopwatch.StartNew();
             InputSender.ClickAt(x, y, rightClick);
             watch.Stop();

@@ -6,6 +6,10 @@ public static class VirtualKeys
 {
     public const int Back = 0x08, Tab = 0x09, Enter = 0x0D, Escape = 0x1B, Space = 0x20;
     public const int Shift = 0x10, Control = 0x11, Alt = 0x12;
+
+    /// <summary>Mouse buttons are virtual keys too — used to tell whether the player is
+    /// mid-drag before an injected click would cut their drag short.</summary>
+    public const int LButton = 0x01, RButton = 0x02;
     public const int LShift = 0xA0, RShift = 0xA1, LControl = 0xA2, RControl = 0xA3, LAlt = 0xA4, RAlt = 0xA5;
 
     public const int NumPad0 = 0x60, NumPad1 = 0x61, NumPad2 = 0x62, NumPad3 = 0x63, NumPad4 = 0x64;
