@@ -1,26 +1,47 @@
+using System.Collections.Concurrent;
 using System.IO;
 
 namespace LexusWarKey.Windows;
 
 /// <summary>Append-only breadcrumbs in %LocalAppData%\LexusWarKey\diagnostic.log.
 ///
-/// "It doesn't work" reports were impossible to act on because the app kept no record of
-/// what it actually did — whether a click fired, where it went, whether Windows refused an
-/// injection. This is deliberately tiny: one line per event, capped size, and a failure to
-/// log must never take the remapper with it.</summary>
+/// Writes are handed to a background thread and never touch the caller. That is not an
+/// optimisation: this is called from the low-level keyboard hook, and Windows removes a hook
+/// whose callback overruns LowLevelHooksTimeout — so a single slow disk or an antivirus
+/// scanning the log file could kill the remapper outright, and it would stay dead until the
+/// re-arm watchdog noticed. Logging must never be able to do that.</summary>
 public static class DiagnosticLog
 {
-    private static readonly object Gate = new();
-
     private static readonly string FilePath = Path.Combine(
         Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData),
         "LexusWarKey", "diagnostic.log");
 
+    /// <summary>Bounded: if the writer cannot keep up, lines are dropped rather than allowed
+    /// to accumulate. A diagnostic aid must not become a memory leak.</summary>
+    private static readonly BlockingCollection<string> Pending = new(512);
+
+    static DiagnosticLog()
+    {
+        var writer = new Thread(WriteLoop)
+        {
+            IsBackground = true,
+            Name = "LexusWarKey diagnostics",
+            Priority = ThreadPriority.BelowNormal,
+        };
+        writer.Start();
+    }
+
+    /// <summary>Queues one line. Returns immediately; safe to call from the hook.</summary>
     public static void Write(string message)
     {
-        try
+        Pending.TryAdd($"{DateTime.Now:HH:mm:ss.fff} {message}");
+    }
+
+    private static void WriteLoop()
+    {
+        foreach (var line in Pending.GetConsumingEnumerable())
         {
-            lock (Gate)
+            try
             {
                 Directory.CreateDirectory(Path.GetDirectoryName(FilePath)!);
 
@@ -29,12 +50,18 @@ public static class DiagnosticLog
                 if (info.Exists && info.Length > 256 * 1024)
                     info.Delete();
 
-                File.AppendAllText(FilePath, $"{DateTime.Now:yyyy-MM-dd HH:mm:ss.fff} {message}\r\n");
+                // Drain whatever else arrived while that was happening, so a burst costs one
+                // open instead of one per line.
+                var batch = line + "\r\n";
+                while (Pending.TryTake(out var more))
+                    batch += more + "\r\n";
+
+                File.AppendAllText(FilePath, batch);
             }
-        }
-        catch
-        {
-            // never let logging break the thing it is meant to explain
+            catch
+            {
+                // never let logging break the thing it is meant to explain
+            }
         }
     }
 }

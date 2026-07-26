@@ -786,14 +786,15 @@ public sealed partial class MainViewModel : ObservableObject
         else if (_engine.ChatOpen && _hook.SinceLastKey > TimeSpan.FromSeconds(20))
             _engine.ResetChatState();
 
-        // While the game is in front, keys are being pressed constantly. A full minute of
+        // While the game is in front, keys are being pressed constantly. Fifteen seconds of
         // silence means Windows dropped our hook without telling us — put it back before the
-        // player notices their inventory keys have quietly stopped working.
+        // player notices their keys have quietly stopped working. A minute was long enough to
+        // lose a teamfight over.
         if (focused && IsEnabled)
         {
             try
             {
-                _hook.ReArmIfSilent(TimeSpan.FromSeconds(60));
+                _hook.ReArmIfSilent(TimeSpan.FromSeconds(15));
             }
             catch
             {

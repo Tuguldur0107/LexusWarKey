@@ -32,10 +32,14 @@ public sealed class KeyboardHookService : IDisposable
     /// of combo, and a dropped finisher is indistinguishable from a misfire.</summary>
     private readonly System.Collections.Concurrent.BlockingCollection<(int X, int Y, bool Right)> _clickQueue = new(12);
 
-    /// <summary>Contact-bounce debounce, per key. Deliberately far below any human re-cast
-    /// interval: an earlier 250ms filter keyed on the CARD POSITION was deleting real second
-    /// casts, which is one of the "my ability didn't fire" reports.</summary>
-    private const int DebounceMs = 35;
+    /// <summary>Contact-bounce debounce, per key. Must stay below any human re-cast interval:
+    /// a 250ms filter keyed on the card POSITION, then a 35ms one, both ate deliberate casts —
+    /// spam-tapping reaches 25-30 presses a second. Auto-repeat is already handled separately,
+    /// so this only has to outlast switch bounce, which is a few milliseconds.</summary>
+    private const int DebounceMs = 10;
+
+    /// <summary>How long a held mouse button may delay a cast before it fires regardless.</summary>
+    private const int MaxDeferMs = 48;
     private readonly Dictionary<int, long> _lastPressTicks = new();
 
     public KeyboardHookService(RemapEngine engine)
@@ -259,17 +263,19 @@ public sealed class KeyboardHookService : IDisposable
     {
         try
         {
-            // Mid-drag-select, an injected button-up would end the player's drag on the command
-            // card and their physical release would then orphan a second up — a corrupted
-            // selection that lasts for seconds. Wait the drag out; a held button is brief.
+            // A mid-drag injected button-up can corrupt the player's selection, so a held
+            // button buys one short grace period — and then the cast goes anyway. Waiting
+            // longer was worse than the problem it solved: every click runs through one
+            // thread, so a held button froze all queued skills behind it. In DotA the left
+            // button is in near-constant use, which made that the common case, not the rare one.
             var waited = 0;
-            while (InputSender.IsKeyHeld(VirtualKeys.LButton) && waited < 400)
+            while (InputSender.IsKeyHeld(VirtualKeys.LButton) && waited < MaxDeferMs)
             {
-                Thread.Sleep(20);
-                waited += 20;
+                Thread.Sleep(8);
+                waited += 8;
             }
             if (waited > 0)
-                DiagnosticLog.Write($"click deferred {waited}ms: mouse button held");
+                DiagnosticLog.Write($"click deferred {waited}ms (mouse button held)");
 
             var watch = System.Diagnostics.Stopwatch.StartNew();
             InputSender.ClickAt(x, y, rightClick);
