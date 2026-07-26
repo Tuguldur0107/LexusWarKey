@@ -149,6 +149,7 @@ public sealed partial class MainViewModel : ObservableObject
     [ObservableProperty] private bool _isCapturing;
 
     private CaptureRequest? _capture;
+    private bool _linkAnywayConfirmed;
     private readonly OverlayConfigSession _overlaySession;
     private OverlayWindow? _overlay;
     private readonly MouseCaptureService _mouse = new();
@@ -206,8 +207,9 @@ public sealed partial class MainViewModel : ObservableObject
 
     public MainViewModel()
     {
-        _store = new ProfileStore();
+        _store = new ProfileStore(log: DiagnosticLog.Write);
         _profile = _store.Load();
+        DiagnosticLog.Write($"startup v{UpdateChecker.CurrentVersion}; profile: skills={_profile.Skills.Count(m => m.ClaimsKey)}, overrides={(_profile.CommandCard.Overrides?.Count ?? 0)}, warning={_store.LoadWarning ?? "none"}");
 
         // A fresh install starts with the card where a fullscreen game actually puts it, so
         // skills work out of the box; Холбох and the draggable rings remain for fine-tuning.
@@ -596,6 +598,7 @@ public sealed partial class MainViewModel : ObservableObject
         }
 
         _overlaySession.Reset();
+        _linkAnywayConfirmed = false;
         EnsureOverlay();
         _hook.ConfigMode = true;
         RenderOverlay();
@@ -635,6 +638,19 @@ public sealed partial class MainViewModel : ObservableObject
                 RenderOverlayPrompt("⚠ " + error);
                 return;
             }
+
+            // The real command card lives in the bottom-right of the screen. Linking a panel
+            // parked mid-screen has destroyed a good calibration before — once, with the
+            // panel at half height, every skill click landed on empty map. Ask once.
+            var screenHeight = Windows.NativeMethods.GetSystemMetrics(Windows.NativeMethods.SM_CYSCREEN);
+            if (bottomRight.Y < screenHeight * 0.65 && !_linkAnywayConfirmed)
+            {
+                _linkAnywayConfirmed = true;
+                RenderOverlayPrompt("⚠ Самбар чинь дэлгэцийн дээд хэсэгт байна — тоглоомын командын карт БАРУУН ДООД буланд байдаг. " +
+                                    "Панелаа картан дээр давхарлаад дахин Холбох дар. Зориуд энд холбох гэсэн бол дахиад нэг Холбох дар.");
+                return;
+            }
+            _linkAnywayConfirmed = false;
 
             var card = _profile.CommandCard;
             card.TopLeftX = topLeft.X;
