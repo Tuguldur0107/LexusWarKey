@@ -141,28 +141,33 @@ public static class InputSender
     /// card is a different ability rather than a near miss.</summary>
     public static int PackClientPoint(int x, int y) => ((y & 0xFFFF) << 16) | (x & 0xFFFF);
 
-    /// <summary>Time between telling the game where the pointer is and pressing the button.
+    /// <summary>Move, wait, press, hold, release.
     ///
-    /// Posting the move and the press back to back made casting work perhaps one press in five —
-    /// the player had to mash the key. Both messages land in the same queue and are pumped in the
-    /// same pass, and the game only works out which button the pointer is over once per frame, so
-    /// a press arriving in that pass is resolved against wherever the pointer was BEFORE the move.
-    /// One frame at 60fps is 16ms; this leaves room for a slower one.</summary>
-    private const int PostedSettleMs = 24;
-
-    public static bool PostClick(IntPtr hwnd, int clientX, int clientY, bool rightClick, int holdMs)
+    /// The wait between the move and the press is the part that matters. Posted back to back they
+    /// land in the same queue and are pumped in the same pass, while the game only works out which
+    /// button the pointer is over once a frame — so the press gets resolved against wherever the
+    /// pointer was BEFORE the move, and casting works about one press in five.
+    ///
+    /// A second move carrying MK_LBUTTON was tried alongside the press, as insurance in case the
+    /// first was missed. It stopped casting working altogether: a move that says the button is
+    /// already down reads as a drag in progress, and the press that follows is then a press of a
+    /// button the game believes it is already holding. Insurance that changes the meaning of the
+    /// message is not insurance.
+    ///
+    /// Both delays come from the caller rather than being fixed here, because the right values
+    /// are a property of the machine and the frame rate, and finding them by shipping a release
+    /// per guess is no way to find anything.</summary>
+    public static bool PostClick(IntPtr hwnd, int clientX, int clientY, bool rightClick,
+                                 int settleMs, int holdMs)
     {
         var lParam = (IntPtr)PackClientPoint(clientX, clientY);
         var down = (uint)(rightClick ? NativeMethods.WM_RBUTTONDOWN : NativeMethods.WM_LBUTTONDOWN);
         var up = (uint)(rightClick ? NativeMethods.WM_RBUTTONUP : NativeMethods.WM_LBUTTONUP);
         var button = (IntPtr)(rightClick ? NativeMethods.MK_RBUTTON : NativeMethods.MK_LBUTTON);
-        var move = (uint)NativeMethods.WM_MOUSEMOVE;
 
-        // Move, let a frame go by, then press. The move is repeated alongside the press so that
-        // if the game did miss the first one it still has the position in hand.
-        var ok = NativeMethods.PostMessage(hwnd, move, IntPtr.Zero, lParam);
-        Thread.Sleep(PostedSettleMs);
-        ok &= NativeMethods.PostMessage(hwnd, move, button, lParam);
+        var ok = NativeMethods.PostMessage(hwnd, (uint)NativeMethods.WM_MOUSEMOVE, IntPtr.Zero, lParam);
+        if (settleMs > 0)
+            Thread.Sleep(settleMs);
         ok &= NativeMethods.PostMessage(hwnd, down, button, lParam);
         Thread.Sleep(holdMs);
         ok &= NativeMethods.PostMessage(hwnd, up, IntPtr.Zero, lParam);

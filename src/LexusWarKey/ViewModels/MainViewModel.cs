@@ -281,7 +281,8 @@ public sealed partial class MainViewModel : ObservableObject
                 : "chat line closed — remapping live again");
 
         _hook = new KeyboardHookService(_engine, _watcher.GameWindowForClicks,
-                                        () => _profile.UsePostedClicks);
+                                        () => _profile.UsePostedClicks,
+                                        () => (_profile.PostedSettleMs, _profile.PostedHoldMs));
         _hook.OverlayToggleRequested += () => Application.Current?.Dispatcher.BeginInvoke(ToggleOverlay);
         _hook.ConfigKeyPressed += vk => Application.Current?.Dispatcher.BeginInvoke(() => OnOverlayKey(vk));
 

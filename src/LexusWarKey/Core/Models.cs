@@ -65,6 +65,14 @@ public sealed class WarKeyProfile
     /// session input queue rather than the game's message queue.</summary>
     public bool UsePostedClicks { get; set; } = true;
 
+    /// <summary>Milliseconds between telling the game where the pointer is and pressing the
+    /// button, and how long the button is then held. Both are in the profile, with no UI, purely
+    /// so they can be changed by editing the file and restarting — the right numbers depend on
+    /// the machine's frame rate, and shipping a release per guess is not a way to find them.
+    /// Zero settle reproduces the original back-to-back behaviour.</summary>
+    public int PostedSettleMs { get; set; } = 24;
+    public int PostedHoldMs { get; set; } = 30;
+
     /// <summary>Where the user dragged the in-game overlay to; null = default corner.</summary>
     public double? OverlayLeft { get; set; }
     public double? OverlayTop { get; set; }

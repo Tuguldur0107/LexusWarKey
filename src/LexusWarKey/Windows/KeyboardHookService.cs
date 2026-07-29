@@ -53,11 +53,13 @@ public sealed class KeyboardHookService : IDisposable
     private readonly Dictionary<int, long> _lastPressTicks = new();
 
     public KeyboardHookService(RemapEngine engine, Func<IntPtr>? gameWindow = null,
-                               Func<bool>? usePostedClicks = null)
+                               Func<bool>? usePostedClicks = null,
+                               Func<(int Settle, int Hold)>? postedTiming = null)
     {
         _engine = engine;
         _gameWindow = gameWindow ?? (() => IntPtr.Zero);
         _usePostedClicks = usePostedClicks ?? (() => false);
+        _postedTiming = postedTiming ?? (() => (24, 30));
         _callback = HookCallback;
 
         var clickThread = new Thread(() =>
@@ -307,9 +309,9 @@ public sealed class KeyboardHookService : IDisposable
         }
     }
 
-    /// <summary>How long the button stays down in a posted click. Matches the value proven to
-    /// work in game; short enough that spam-tapping is not throttled by it.</summary>
-    private const int PostedHoldMs = 30;
+    /// <summary>Settle and hold times for a posted click, read from the profile so they can be
+    /// tuned by editing the file rather than by cutting a release for each guess.</summary>
+    private readonly Func<(int Settle, int Hold)> _postedTiming;
 
     /// <summary>Casts a slot by moving the real cursor there and back, unless the profile asks
     /// for posted clicks.
@@ -335,11 +337,13 @@ public sealed class KeyboardHookService : IDisposable
             var why = InputSender.WhyCannotPost(hwnd, x, y, out var clientX, out var clientY);
             if (why is null)
             {
+                var (settle, hold) = _postedTiming();
                 var watch = System.Diagnostics.Stopwatch.StartNew();
-                var posted = InputSender.PostClick(hwnd, clientX, clientY, rightClick, PostedHoldMs);
+                var posted = InputSender.PostClick(hwnd, clientX, clientY, rightClick, settle, hold);
                 watch.Stop();
                 DiagnosticLog.Write(
-                    $"click ({x},{y}) right={rightClick} {watch.ElapsedMilliseconds}ms posted"
+                    $"click ({x},{y})->client({clientX},{clientY}) right={rightClick} "
+                    + $"settle={settle} hold={hold} {watch.ElapsedMilliseconds}ms posted"
                     + (posted ? "" : " — PostMessage REFUSED, falling back to the cursor"));
                 if (posted)
                     return;
