@@ -154,11 +154,15 @@ public class CommandCardTests
         Assert.Equal(VirtualKeys.NumPad7, d.SendVk);
     }
 
+    /// <summary>This assertion used to read the other way round, on the belief that Warcraft
+    /// ignores posted clicks. It does not. What was actually happening is that Warcraft runs
+    /// elevated here and the app did not, so Windows discarded every message on the way in
+    /// without reporting anything — PostMessage kept returning success. Run with the same
+    /// privilege as the game, the abilities fire and the cursor is never touched, which is the
+    /// only behaviour this player will accept.</summary>
     [Fact]
-    public void Posted_clicks_are_off_by_default_because_the_game_ignores_them()
+    public void Posted_clicks_are_the_default_because_the_cursor_must_never_be_taken()
     {
-        // The default path briefly moves the real cursor and restores it — the same thing
-        // Garena WarKey does, because that is the click Warcraft actually acts on.
-        Assert.False(new WarKeyProfile().UsePostedClicks);
+        Assert.True(new WarKeyProfile().UsePostedClicks);
     }
 }

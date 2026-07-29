@@ -18,6 +18,11 @@ public sealed class KeyboardHookService : IDisposable
     /// per click: the game is started, alt-tabbed away from and closed underneath us.</summary>
     private readonly Func<IntPtr> _gameWindow;
 
+    /// <summary>Whether to post clicks rather than move the cursor. Off unless the profile turns
+    /// it on — see <see cref="WarKeyProfile.UsePostedClicks"/> for why the better-looking path is
+    /// not the default one.</summary>
+    private readonly Func<bool> _usePostedClicks;
+
     private readonly NativeMethods.LowLevelKeyboardProc _callback; // kept alive; a collected delegate crashes the hook
     private IntPtr _hook = IntPtr.Zero;
     private long _lastCallbackTicks;
@@ -47,10 +52,12 @@ public sealed class KeyboardHookService : IDisposable
     private const int MaxDeferMs = 48;
     private readonly Dictionary<int, long> _lastPressTicks = new();
 
-    public KeyboardHookService(RemapEngine engine, Func<IntPtr>? gameWindow = null)
+    public KeyboardHookService(RemapEngine engine, Func<IntPtr>? gameWindow = null,
+                               Func<bool>? usePostedClicks = null)
     {
         _engine = engine;
         _gameWindow = gameWindow ?? (() => IntPtr.Zero);
+        _usePostedClicks = usePostedClicks ?? (() => false);
         _callback = HookCallback;
 
         var clickThread = new Thread(() =>
@@ -304,18 +311,24 @@ public sealed class KeyboardHookService : IDisposable
     /// work in game; short enough that spam-tapping is not throttled by it.</summary>
     private const int PostedHoldMs = 30;
 
-    /// <summary>Casts a slot. Posting the click to the game's own window is tried first and is
-    /// the path that should always run: the real cursor is never touched, so nothing is stolen
-    /// from the player's aim, there is no excursion to serialise behind, and a cast during a
-    /// flick lands on the slot rather than on wherever the hand had dragged the pointer.
+    /// <summary>Casts a slot by moving the real cursor there and back, unless the profile asks
+    /// for posted clicks.
     ///
-    /// The cursor path stays as a fallback for the cases the posted one genuinely cannot serve —
-    /// the game not running under a name we recognise, or a slot that converts to a point outside
-    /// the client area. Which path ran, and why, goes in the log: the last time these two were
-    /// weighed against each other the answer was decided by a measurement taken while the game
-    /// was minimised, and got the app stuck on the worse path for months.</summary>
+    /// Posting is the better-looking mechanism and the messages demonstrably arrive — the log
+    /// fills with successful posts and never a refusal — but on this player's machine the
+    /// abilities do not come out, while the cursor path they had been playing with for days
+    /// does. So the cursor is what ships, and posting is a switch rather than the default.
+    ///
+    /// Which path ran goes in the log either way. Both times this decision has been made, it was
+    /// made from a summary of an experiment rather than from what the experiment recorded.</summary>
     private void Click(int x, int y, bool rightClick)
     {
+        if (!_usePostedClicks())
+        {
+            SafeClick(x, y, rightClick);
+            return;
+        }
+
         try
         {
             var hwnd = _gameWindow();

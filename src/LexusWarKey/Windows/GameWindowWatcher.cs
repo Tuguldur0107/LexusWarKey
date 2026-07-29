@@ -116,6 +116,34 @@ public sealed class GameWindowWatcher
         return hwnd != IntPtr.Zero && !NativeMethods.IsIconic(hwnd) ? hwnd : IntPtr.Zero;
     }
 
+    /// <summary>True when Warcraft is running at a privilege this app cannot reach into.
+    ///
+    /// This is the difference between every skill working and none of them working, and it is
+    /// completely invisible without asking: Warcraft here is launched elevated, and Windows will
+    /// not let a normal process post window messages to an elevated one. UIPI discards them
+    /// silently — PostMessage still returns success — so the log fills with clicks that were
+    /// never delivered while the player sees nothing happen at all.
+    ///
+    /// Asked by trying to open the process for read. Nothing is read; the attempt IS the answer,
+    /// and it fails with ACCESS_DENIED exactly when the messages would be dropped.</summary>
+    public bool GameIsOutOfReach()
+    {
+        var proc = GameProcessNames
+            .SelectMany(n => { try { return Process.GetProcessesByName(n); } catch { return []; } })
+            .FirstOrDefault();
+        if (proc is null)
+            return false;                       // not running; nothing to be locked out of
+
+        using (proc)
+        {
+            var h = NativeMethods.OpenProcess(NativeMethods.PROCESS_QUERY_INFORMATION, false, proc.Id);
+            if (h == IntPtr.Zero)
+                return true;
+            NativeMethods.CloseHandle(h);
+            return false;
+        }
+    }
+
     /// <summary>The game's main window, focused or not.</summary>
     private static IntPtr FindGameWindow()
     {

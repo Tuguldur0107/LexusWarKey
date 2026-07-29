@@ -141,18 +141,28 @@ public static class InputSender
     /// card is a different ability rather than a near miss.</summary>
     public static int PackClientPoint(int x, int y) => ((y & 0xFFFF) << 16) | (x & 0xFFFF);
 
+    /// <summary>Time between telling the game where the pointer is and pressing the button.
+    ///
+    /// Posting the move and the press back to back made casting work perhaps one press in five —
+    /// the player had to mash the key. Both messages land in the same queue and are pumped in the
+    /// same pass, and the game only works out which button the pointer is over once per frame, so
+    /// a press arriving in that pass is resolved against wherever the pointer was BEFORE the move.
+    /// One frame at 60fps is 16ms; this leaves room for a slower one.</summary>
+    private const int PostedSettleMs = 24;
+
     public static bool PostClick(IntPtr hwnd, int clientX, int clientY, bool rightClick, int holdMs)
     {
         var lParam = (IntPtr)PackClientPoint(clientX, clientY);
         var down = (uint)(rightClick ? NativeMethods.WM_RBUTTONDOWN : NativeMethods.WM_LBUTTONDOWN);
         var up = (uint)(rightClick ? NativeMethods.WM_RBUTTONUP : NativeMethods.WM_LBUTTONUP);
         var button = (IntPtr)(rightClick ? NativeMethods.MK_RBUTTON : NativeMethods.MK_LBUTTON);
+        var move = (uint)NativeMethods.WM_MOUSEMOVE;
 
-        // The move first, so the game resolves the press against this point rather than wherever
-        // it last saw the pointer. Then the button is held briefly for the same reason the cursor
-        // path holds it: a press and release in the same instant can fall between two of the
-        // game's input samples and be seen as neither.
-        var ok = NativeMethods.PostMessage(hwnd, (uint)NativeMethods.WM_MOUSEMOVE, IntPtr.Zero, lParam);
+        // Move, let a frame go by, then press. The move is repeated alongside the press so that
+        // if the game did miss the first one it still has the position in hand.
+        var ok = NativeMethods.PostMessage(hwnd, move, IntPtr.Zero, lParam);
+        Thread.Sleep(PostedSettleMs);
+        ok &= NativeMethods.PostMessage(hwnd, move, button, lParam);
         ok &= NativeMethods.PostMessage(hwnd, down, button, lParam);
         Thread.Sleep(holdMs);
         ok &= NativeMethods.PostMessage(hwnd, up, IntPtr.Zero, lParam);

@@ -180,4 +180,14 @@ internal static class NativeMethods
     /// other means rather than trusting the return value.</summary>
     [DllImport("user32.dll", CharSet = CharSet.Unicode, SetLastError = true)]
     internal static extern bool PostMessage(IntPtr hWnd, uint msg, IntPtr wParam, IntPtr lParam);
+
+    // ---- asking whether the game is above us in privilege ----
+
+    internal const int PROCESS_QUERY_INFORMATION = 0x0400;
+
+    [DllImport("kernel32.dll", SetLastError = true)]
+    internal static extern IntPtr OpenProcess(int access, bool inheritHandle, int processId);
+
+    [DllImport("kernel32.dll", SetLastError = true)]
+    internal static extern bool CloseHandle(IntPtr handle);
 }

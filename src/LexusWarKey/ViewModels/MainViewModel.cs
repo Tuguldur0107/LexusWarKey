@@ -280,7 +280,8 @@ public sealed partial class MainViewModel : ObservableObject
                 ? "chat line opened — remapping suspended until it closes"
                 : "chat line closed — remapping live again");
 
-        _hook = new KeyboardHookService(_engine, _watcher.GameWindowForClicks);
+        _hook = new KeyboardHookService(_engine, _watcher.GameWindowForClicks,
+                                        () => _profile.UsePostedClicks);
         _hook.OverlayToggleRequested += () => Application.Current?.Dispatcher.BeginInvoke(ToggleOverlay);
         _hook.ConfigKeyPressed += vk => Application.Current?.Dispatcher.BeginInvoke(() => OnOverlayKey(vk));
 
@@ -854,6 +855,18 @@ public sealed partial class MainViewModel : ObservableObject
             problems.Add("Товч уншигч ажиллахгүй байна. Аппаа хааж дахин нээнэ үү.");
 
         problems.AddRange(RemapEngine.FindDeadBindings(_profile));
+
+        // The one failure with no symptom of its own. Elevated Warcraft plus a normal-privilege
+        // app means Windows throws away every click on the way in, without an error anywhere, and
+        // what the player sees is simply that none of their keys do anything. Nothing else in this
+        // panel matters if this is true, so it goes first.
+        if (_profile.UsePostedClicks && _watcher.GameIsOutOfReach())
+        {
+            problems.Insert(0,
+                "Warcraft администратор эрхээр ажиллаж байна, энэ апп ажиллахгүй байна — " +
+                "Windows товчны дохиог чимээгүй хаяж байна. Lexus WarKey дээр баруун товч дараад " +
+                "«Администратороор ажиллуулах» гэж сонгоно уу.");
+        }
 
         // A card linked at another resolution, or before the game was windowed, points outside
         // where the game is drawing. Nothing about that is visible in play — the key simply

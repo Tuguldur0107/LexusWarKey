@@ -54,11 +54,16 @@ public sealed class WarKeyProfile
     /// old profile files still deserialise; no longer read anywhere.</summary>
     public bool MoveCursorForClicks { get; set; }
 
-    /// <summary>Retired experiment, kept only so old profile files still deserialise. Posted
-    /// clicks were confirmed ignored by the game on a real machine (the user enabled this and
-    /// every skill key went dead), so clicks always move the real cursor now — the same thing
-    /// every Warcraft tool has done for twenty years.</summary>
-    public bool UsePostedClicks { get; set; }
+    /// <summary>Post clicks to the game's window instead of moving the real cursor there. ON by
+    /// default: the player will not accept the cursor being taken, however briefly.
+    ///
+    /// This needs the app to be running as administrator, and that is not a preference. Warcraft
+    /// here is launched elevated, and Windows will not let a normal-privilege process send window
+    /// messages to an elevated one — UIPI drops them without a word, so PostMessage returns
+    /// success, the log fills with clicks that were never delivered, and not one ability comes
+    /// out. The cursor path was unaffected because injected cursor movement goes through the
+    /// session input queue rather than the game's message queue.</summary>
+    public bool UsePostedClicks { get; set; } = true;
 
     /// <summary>Where the user dragged the in-game overlay to; null = default corner.</summary>
     public double? OverlayLeft { get; set; }
