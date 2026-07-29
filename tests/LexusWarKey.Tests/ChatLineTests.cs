@@ -143,6 +143,65 @@ public class ChatLineTests
         Assert.Equal(RemapAction.PassThrough, engine.Decide(VirtualKeys.Escape, true, false, false).Action);
     }
 
+    /// <summary>The tracker's one dangerous failure is latching open and never clearing: the app
+    /// then passes every key through and looks dead for the rest of the match. The guard against
+    /// it lives in the view model, but it can only work if the engine measures the right thing —
+    /// how long the LINE has been open, not how long the keyboard has been quiet. Mid-fight the
+    /// keyboard is never quiet, which is precisely when the guard has to fire.</summary>
+    [Fact]
+    public void A_chat_line_reports_how_long_it_has_been_open_regardless_of_typing()
+    {
+        var profile = WarKeyProfile.CreateDefault();
+        var clock = 1_000L;
+        var engine = new RemapEngine(() => profile, () => true, null, () => clock);
+
+        Assert.Equal(TimeSpan.Zero, engine.ChatOpenFor);
+
+        Press(engine, VirtualKeys.Enter);
+        Assert.True(engine.ChatOpen);
+
+        // The player keeps hammering keys the whole time, as they would in a fight.
+        clock += 30_000;
+        Press(engine, 'W');
+        Press(engine, 'E');
+
+        Assert.True(engine.ChatOpenFor > TimeSpan.FromSeconds(20));
+    }
+
+    [Fact]
+    public void Closing_the_line_stops_the_clock()
+    {
+        var profile = WarKeyProfile.CreateDefault();
+        var clock = 1_000L;
+        var engine = new RemapEngine(() => profile, () => true, null, () => clock);
+
+        Press(engine, VirtualKeys.Enter);
+        clock += 30_000;
+        Press(engine, VirtualKeys.Enter);
+
+        Assert.False(engine.ChatOpen);
+        Assert.Equal(TimeSpan.Zero, engine.ChatOpenFor);
+    }
+
+    /// <summary>Reopening restarts the clock; a fresh message must get its full allowance
+    /// rather than inheriting how long the previous one sat there.</summary>
+    [Fact]
+    public void Reopening_restarts_the_clock()
+    {
+        var profile = WarKeyProfile.CreateDefault();
+        var clock = 1_000L;
+        var engine = new RemapEngine(() => profile, () => true, null, () => clock);
+
+        Press(engine, VirtualKeys.Enter);
+        clock += 30_000;
+        Press(engine, VirtualKeys.Enter);   // sent
+        clock += 5_000;
+        Press(engine, VirtualKeys.Enter);   // a new message
+
+        Assert.True(engine.ChatOpen);
+        Assert.Equal(TimeSpan.Zero, engine.ChatOpenFor);
+    }
+
     [Fact]
     public void Opening_and_closing_raises_the_event_the_status_line_listens_to()
     {

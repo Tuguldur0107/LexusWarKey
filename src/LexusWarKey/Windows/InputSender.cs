@@ -91,6 +91,74 @@ public static class InputSender
 
     public static bool IsKeyHeld(int vk) => (NativeMethods.GetAsyncKeyState(vk) & 0x8000) != 0;
 
+    /// <summary>Why a posted click could not be attempted, or null when it was sent.</summary>
+    public static string? WhyCannotPost(IntPtr hwnd, int screenX, int screenY,
+                                        out int clientX, out int clientY)
+    {
+        clientX = clientY = 0;
+
+        if (hwnd == IntPtr.Zero)
+            return "the game window could not be found";
+        if (NativeMethods.IsIconic(hwnd))
+            return "the game is minimised";
+
+        var point = new NativeMethods.POINT { X = screenX, Y = screenY };
+        if (!NativeMethods.ScreenToClient(hwnd, ref point))
+            return "ScreenToClient failed";
+        clientX = point.X;
+        clientY = point.Y;
+
+        if (!NativeMethods.GetClientRect(hwnd, out var rect))
+            return "GetClientRect failed";
+        if (point.X < 0 || point.Y < 0 || point.X >= rect.Right || point.Y >= rect.Bottom)
+            return $"the slot converts to client ({point.X},{point.Y}), outside {rect.Right}x{rect.Bottom}";
+
+        return null;
+    }
+
+    /// <summary>Clicks a command-card slot by posting mouse messages to the game's own window.
+    /// The real cursor never moves, never has to be put back, and the player's aim is never
+    /// touched — so a cast during a flick costs nothing and cannot land where the hand happened
+    /// to drag the pointer.
+    ///
+    /// This path was written once before, concluded not to work, and deleted. That conclusion was
+    /// wrong, and the way it was wrong is worth recording. The old code converted the slot with
+    /// ScreenToClient and refused to post anything when the result fell outside the client area —
+    /// correct in itself. But a MINIMISED Warcraft still answers every geometry call, reporting a
+    /// 237x39 client area parked at (-32000,-32000), and fullscreen Warcraft minimises itself the
+    /// instant you alt-tab. So every measurement taken while setting the experiment up described a
+    /// window in the taskbar, every slot converted to something like (34456,33538), the guard
+    /// rejected all of them, and not one message was ever posted. The resulting silence was read
+    /// as "Warcraft ignores posted clicks" and the app moved to dragging the cursor around
+    /// instead. Re-run with the game actually in front, the game acts on these immediately.
+    ///
+    /// Returns false only when the messages could not be queued; the caller logs the reason and
+    /// falls back to the cursor. Queued is not the same as acted upon, which is why the fallback
+    /// stays.</summary>
+    /// <summary>Packs a client point the way a mouse message carries it: x in the low word, y in
+    /// the high word. Kept apart from the P/Invoke so the arithmetic can be tested — an x that
+    /// bleeds into y's half puts the click on a different row of the card, which on a command
+    /// card is a different ability rather than a near miss.</summary>
+    public static int PackClientPoint(int x, int y) => ((y & 0xFFFF) << 16) | (x & 0xFFFF);
+
+    public static bool PostClick(IntPtr hwnd, int clientX, int clientY, bool rightClick, int holdMs)
+    {
+        var lParam = (IntPtr)PackClientPoint(clientX, clientY);
+        var down = (uint)(rightClick ? NativeMethods.WM_RBUTTONDOWN : NativeMethods.WM_LBUTTONDOWN);
+        var up = (uint)(rightClick ? NativeMethods.WM_RBUTTONUP : NativeMethods.WM_LBUTTONUP);
+        var button = (IntPtr)(rightClick ? NativeMethods.MK_RBUTTON : NativeMethods.MK_LBUTTON);
+
+        // The move first, so the game resolves the press against this point rather than wherever
+        // it last saw the pointer. Then the button is held briefly for the same reason the cursor
+        // path holds it: a press and release in the same instant can fall between two of the
+        // game's input samples and be seen as neither.
+        var ok = NativeMethods.PostMessage(hwnd, (uint)NativeMethods.WM_MOUSEMOVE, IntPtr.Zero, lParam);
+        ok &= NativeMethods.PostMessage(hwnd, down, button, lParam);
+        Thread.Sleep(holdMs);
+        ok &= NativeMethods.PostMessage(hwnd, up, IntPtr.Zero, lParam);
+        return ok;
+    }
+
     /// <summary>Milliseconds the button stays down. A press and release delivered back to back
     /// occupy no time at all, and anything sampling input once a frame can look before and after
     /// and never see the button down — the cursor visibly darts to the slot and no skill fires.
@@ -103,8 +171,21 @@ public static class InputSender
     /// <summary>Clicks by moving the real cursor to the point and back — about 35ms. Posting
     /// messages to the game window was tried first and looked perfect in code, but Warcraft
     /// resolves clicks against the actual cursor position, so posted clicks were silently
-    /// ignored (confirmed on this user's machine — and it is why every Warcraft tool of the
-    /// last twenty years moves the cursor instead).
+    /// ignored (confirmed on this user's machine).
+    ///
+    /// Clicking is the right mechanism for LoD and the wrong one everywhere else, and it is worth
+    /// being honest about which. AucT's Hotkeys Tool — the tool LoD 6.74c's own instructions point
+    /// players at for exactly this problem — casts skills the same way, by left-clicking the card;
+    /// its author also says plainly that it "can not properly work on some pc's" and recommends a
+    /// CustomKeys.txt instead when you can. Garena's WarKey and Warkey++ are documented around
+    /// inventory keys, quick messages and macros and make no such claim, so this is NOT what every
+    /// Warcraft tool does — it is what the tools that must survive RANDOM abilities do.
+    ///
+    /// The alternative is sending the ability's own letter, which is strictly more reliable — no
+    /// calibration, no cursor, no queue — but needs that letter to be knowable in advance. In LoD
+    /// it is not: skills are drawn fresh each match and two picks can land on the same key, where
+    /// Warcraft's own CustomKeyInfo.txt says the result is undefined and only one of them fires.
+    /// Position is the only stable handle, which is the whole reason this method exists.
     ///
     /// Two things make the press actually land, and both were missing:
     ///

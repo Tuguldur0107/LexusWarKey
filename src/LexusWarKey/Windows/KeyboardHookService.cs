@@ -13,6 +13,11 @@ namespace LexusWarKey.Windows;
 public sealed class KeyboardHookService : IDisposable
 {
     private readonly RemapEngine _engine;
+
+    /// <summary>The game window to post clicks at, or Zero when it cannot be found. Asked afresh
+    /// per click: the game is started, alt-tabbed away from and closed underneath us.</summary>
+    private readonly Func<IntPtr> _gameWindow;
+
     private readonly NativeMethods.LowLevelKeyboardProc _callback; // kept alive; a collected delegate crashes the hook
     private IntPtr _hook = IntPtr.Zero;
     private long _lastCallbackTicks;
@@ -42,15 +47,16 @@ public sealed class KeyboardHookService : IDisposable
     private const int MaxDeferMs = 48;
     private readonly Dictionary<int, long> _lastPressTicks = new();
 
-    public KeyboardHookService(RemapEngine engine)
+    public KeyboardHookService(RemapEngine engine, Func<IntPtr>? gameWindow = null)
     {
         _engine = engine;
+        _gameWindow = gameWindow ?? (() => IntPtr.Zero);
         _callback = HookCallback;
 
         var clickThread = new Thread(() =>
         {
             foreach (var (x, y, right) in _clickQueue.GetConsumingEnumerable())
-                SafeClick(x, y, right);
+                Click(x, y, right);
         })
         {
             IsBackground = true,
@@ -294,10 +300,49 @@ public sealed class KeyboardHookService : IDisposable
         }
     }
 
-    /// <summary>Moves the real cursor, clicks, and puts it back — the same thing Garena's
-    /// WarKey and every other Warcraft tool does, because the game resolves a click against
-    /// the actual cursor. There used to be a PostMessage mode that never moved the cursor;
-    /// it was removed after proving, on a real machine, that the game simply ignores it.</summary>
+    /// <summary>How long the button stays down in a posted click. Matches the value proven to
+    /// work in game; short enough that spam-tapping is not throttled by it.</summary>
+    private const int PostedHoldMs = 30;
+
+    /// <summary>Casts a slot. Posting the click to the game's own window is tried first and is
+    /// the path that should always run: the real cursor is never touched, so nothing is stolen
+    /// from the player's aim, there is no excursion to serialise behind, and a cast during a
+    /// flick lands on the slot rather than on wherever the hand had dragged the pointer.
+    ///
+    /// The cursor path stays as a fallback for the cases the posted one genuinely cannot serve —
+    /// the game not running under a name we recognise, or a slot that converts to a point outside
+    /// the client area. Which path ran, and why, goes in the log: the last time these two were
+    /// weighed against each other the answer was decided by a measurement taken while the game
+    /// was minimised, and got the app stuck on the worse path for months.</summary>
+    private void Click(int x, int y, bool rightClick)
+    {
+        try
+        {
+            var hwnd = _gameWindow();
+            var why = InputSender.WhyCannotPost(hwnd, x, y, out var clientX, out var clientY);
+            if (why is null)
+            {
+                var watch = System.Diagnostics.Stopwatch.StartNew();
+                var posted = InputSender.PostClick(hwnd, clientX, clientY, rightClick, PostedHoldMs);
+                watch.Stop();
+                DiagnosticLog.Write(
+                    $"click ({x},{y}) right={rightClick} {watch.ElapsedMilliseconds}ms posted"
+                    + (posted ? "" : " — PostMessage REFUSED, falling back to the cursor"));
+                if (posted)
+                    return;
+            }
+            else
+            {
+                DiagnosticLog.Write($"click ({x},{y}) cannot be posted: {why} — using the cursor");
+            }
+        }
+        catch { /* fall through to the cursor rather than dropping the cast */ }
+
+        SafeClick(x, y, rightClick);
+    }
+
+    /// <summary>Fallback: moves the real cursor, clicks, and puts it back. Costs about 35ms and
+    /// briefly takes the pointer away from the player, which is why it is no longer the default.</summary>
     private static void SafeClick(int x, int y, bool rightClick)
     {
         try
@@ -335,6 +380,12 @@ public sealed class KeyboardHookService : IDisposable
     {
         // SuspendedForTyping was already set in the hook, before this was queued — setting it
         // here left a gap where a second macro could slip in while the pool spun up a thread.
+        //
+        // Every key is passed through untouched for the whole of this, and a six-line macro takes
+        // well over a second. That is a real window in which a skill key does nothing, so both
+        // ends are on the record rather than left to be guessed at from a gap in the clicks.
+        var watch = System.Diagnostics.Stopwatch.StartNew();
+        DiagnosticLog.Write($"macro typing {lines.Count} line(s) — remapping suspended");
         try
         {
             foreach (var line in lines)
@@ -371,6 +422,7 @@ public sealed class KeyboardHookService : IDisposable
         {
             _engine.SuspendedForTyping = false;
             Interlocked.Exchange(ref _macroInFlight, 0);
+            DiagnosticLog.Write($"macro done after {watch.ElapsedMilliseconds}ms — remapping live again");
         }
     }
 

@@ -1,4 +1,5 @@
 using LexusWarKey.Core;
+using LexusWarKey.Windows;
 using Xunit;
 
 namespace LexusWarKey.Tests;
@@ -86,5 +87,48 @@ public class GameAreaSeedTests
 
         Assert.Equal(1280, card.CapturedWidth);
         Assert.Equal(720, card.CapturedHeight);
+    }
+
+    /// <summary>Measured on the real thing: a MINIMISED war3 answers every geometry call happily
+    /// and reports a 237x39 client area parked at (-32000,-32000). Nothing used to reject that,
+    /// so with the game in the taskbar the app took that rectangle for the game and acted on it.
+    /// Both consequences were silent and both looked like the app being broken: a linked card was
+    /// declared "outside the Warcraft window" with instructions to re-link it, and an unlinked one
+    /// would be seeded into coordinates no click on this planet can reach.</summary>
+    [Fact]
+    public void A_minimised_game_is_not_a_game_area()
+    {
+        Assert.False(GameWindowWatcher.IsPlausibleGameArea(minimised: true, 237, 39));
+        // Even at a believable size — minimised is minimised, wherever Windows parked it.
+        Assert.False(GameWindowWatcher.IsPlausibleGameArea(minimised: true, 2560, 1600));
+    }
+
+    [Theory]
+    [InlineData(237, 39)]     // what a minimised war3 actually reports
+    [InlineData(0, 0)]
+    [InlineData(1280, 200)]   // a sliver: tall enough to pass the old > 0 test, far too short
+    public void A_client_area_too_small_to_be_the_game_is_refused(int width, int height)
+    {
+        Assert.False(GameWindowWatcher.IsPlausibleGameArea(minimised: false, width, height));
+    }
+
+    [Theory]
+    [InlineData(1024, 768)]
+    [InlineData(1280, 720)]
+    [InlineData(2560, 1600)]
+    public void A_real_window_is_accepted(int width, int height)
+    {
+        Assert.True(GameWindowWatcher.IsPlausibleGameArea(minimised: false, width, height));
+    }
+
+    /// <summary>The exact false alarm this caused: a perfectly good card, judged against the
+    /// stub rectangle a minimised game reports, reads as "outside the Warcraft window".</summary>
+    [Fact]
+    public void The_minimised_rectangle_would_have_condemned_a_perfectly_good_card()
+    {
+        var card = CommandCard.DefaultFor(2560, 1600);
+
+        Assert.True(card.FitsInside(0, 0, 2560, 1600));
+        Assert.False(card.FitsInside(-32000, -32000, 237, 39));
     }
 }

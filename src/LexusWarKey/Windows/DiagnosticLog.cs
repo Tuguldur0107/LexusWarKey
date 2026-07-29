@@ -34,7 +34,10 @@ public static class DiagnosticLog
     /// <summary>Queues one line. Returns immediately; safe to call from the hook.</summary>
     public static void Write(string message)
     {
-        Pending.TryAdd($"{DateTime.Now:HH:mm:ss.fff} {message}");
+        // With the date, because this file is read days after the session it describes and a bare
+        // clock time cannot say which evening a run belongs to — the log already holds stretches
+        // that are impossible to place against "it broke last night".
+        Pending.TryAdd($"{DateTime.Now:yyyy-MM-dd HH:mm:ss.fff} {message}");
     }
 
     private static void WriteLoop()

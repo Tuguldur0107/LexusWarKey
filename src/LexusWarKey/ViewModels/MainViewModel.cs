@@ -137,6 +137,11 @@ public sealed partial class MainViewModel : ObservableObject
     private readonly WarKeyProfile _profile;
     private readonly System.Windows.Threading.DispatcherTimer _statusTimer;
 
+    /// <summary>How long the chat line may stay open before we stop believing our own tracker.
+    /// Generous on purpose: the cost of cutting a real message short is one garbled sentence,
+    /// the cost of staying wrong is every key for the rest of the match.</summary>
+    private static readonly TimeSpan StuckChatLine = TimeSpan.FromSeconds(20);
+
     [ObservableProperty] private bool _isEnabled;
     [ObservableProperty] private bool _onlyWhenGameFocused;
     [ObservableProperty] private string _statusText = "";
@@ -265,7 +270,17 @@ public sealed partial class MainViewModel : ObservableObject
         _activationIsLegacy = saved.IsLegacy;
 
         _engine = new RemapEngine(() => _profile, _watcher.IsGameFocused, () => IsActivated);
-        _hook = new KeyboardHookService(_engine);
+
+        // While the tracker says the chat line is open the app deliberately does nothing, and in
+        // fullscreen the status pill saying so is behind the game where nobody can read it. So it
+        // goes in the log: an "opened" with no "closed" after it is the signature of the tracker
+        // losing sync, and there is no other way to tell that apart from "the keys just stopped".
+        _engine.ChatOpenChanged += open =>
+            DiagnosticLog.Write(open
+                ? "chat line opened — remapping suspended until it closes"
+                : "chat line closed — remapping live again");
+
+        _hook = new KeyboardHookService(_engine, _watcher.GameWindowForClicks);
         _hook.OverlayToggleRequested += () => Application.Current?.Dispatcher.BeginInvoke(ToggleOverlay);
         _hook.ConfigKeyPressed += vk => Application.Current?.Dispatcher.BeginInvoke(() => OnOverlayKey(vk));
 
@@ -863,6 +878,12 @@ public sealed partial class MainViewModel : ObservableObject
 
     private void RefreshStatus()
     {
+        // Keep trying to place an unlinked card, not just once at startup. The app usually starts
+        // with Windows and the game arrives long afterwards, so the one attempt in the constructor
+        // ran when there was no game to measure — and the card then sat unlinked, telling the
+        // player to go and link it by hand, when the answer was available the whole time. This
+        // returns immediately once the card has a position, and never touches one that has.
+        SeedCardIfNeeded();
         RescaleCardIfScreenChanged();
 
         var focused = _watcher.IsGameFocused();
@@ -887,10 +908,20 @@ public sealed partial class MainViewModel : ObservableObject
 
         // Alt-tabbing away in the middle of a half-typed message leaves the game's chat line open
         // while ours is cleared, and from then on our idea of it is inverted — which would suspend
-        // remapping indefinitely. Nobody leaves a message half-written for twenty seconds, so
-        // silence that long is taken as proof the line is not really open.
-        else if (_engine.ChatOpen && _hook.SinceLastKey > TimeSpan.FromSeconds(20))
+        // remapping indefinitely. Nobody leaves a message half-written for twenty seconds, so a
+        // line still open that long is taken as proof it is not really open.
+        //
+        // Measured from when the line OPENED, not from the last keystroke. Keyboard silence was
+        // the wrong signal and made this guard useless exactly when it was needed: mid-match the
+        // player is pressing keys constantly, so SinceLastKey never reached twenty seconds and an
+        // inverted tracker survived until the next alt-tab — a whole game with the remapper dead
+        // and nothing on screen to say so.
+        else if (_engine.ChatOpenFor > StuckChatLine)
+        {
+            DiagnosticLog.Write($"chat line forced shut after {_engine.ChatOpenFor.TotalSeconds:F0}s "
+                                + "— the tracker was almost certainly out of step with the game");
             _engine.ResetChatState();
+        }
 
         // While the game is in front, keys are being pressed constantly. Fifteen seconds of
         // silence means Windows dropped our hook without telling us — put it back before the

@@ -36,12 +36,17 @@ public sealed class RemapEngine
     private readonly Func<WarKeyProfile> _profile;
     private readonly Func<bool> _gameFocused;
     private readonly Func<bool>? _activated;
+    private readonly Func<long> _nowMs;
 
-    public RemapEngine(Func<WarKeyProfile> profile, Func<bool> gameFocused, Func<bool>? activated = null)
+    /// <param name="nowMs">Monotonic milliseconds. Injected so <see cref="ChatOpenFor"/> — the
+    /// guard against a tracker stuck open — can be tested without sleeping for twenty seconds.</param>
+    public RemapEngine(Func<WarKeyProfile> profile, Func<bool> gameFocused, Func<bool>? activated = null,
+                       Func<long>? nowMs = null)
     {
         _profile = profile;
         _gameFocused = gameFocused;
         _activated = activated;
+        _nowMs = nowMs ?? (() => Environment.TickCount64);
     }
 
     /// <summary>Set while the app itself is typing a macro, so its own keystrokes are not remapped.</summary>
@@ -58,6 +63,19 @@ public sealed class RemapEngine
     /// latches on keys the game actually received, and clears itself the moment the game is not
     /// focused. <see cref="ChatOpenChanged"/> lets the UI say so out loud rather than looking dead.</summary>
     public bool ChatOpen { get; private set; }
+
+    /// <summary>How long the tracker has believed the chat line was open, measured from the
+    /// keystroke that opened it. Zero when it is closed.
+    ///
+    /// This is the only handle on the tracker's one dangerous failure: if the game closes its
+    /// chat line without an Enter or Escape reaching us — alt-tab mid-message is the known way —
+    /// our idea of it inverts, every key passes through, and the app does nothing for the rest of
+    /// the match without a single sign that anything is wrong. Real messages are sent in seconds;
+    /// a line still "open" long after that is our mistake, not the player's typing.</summary>
+    public TimeSpan ChatOpenFor =>
+        ChatOpen ? TimeSpan.FromMilliseconds(_nowMs() - _chatOpenedMs) : TimeSpan.Zero;
+
+    private long _chatOpenedMs;
 
     public event Action<bool>? ChatOpenChanged;
 
@@ -127,6 +145,8 @@ public sealed class RemapEngine
         if (ChatOpen == value)
             return;
         ChatOpen = value;
+        if (value)
+            _chatOpenedMs = _nowMs();
         ChatOpenChanged?.Invoke(value);
     }
 

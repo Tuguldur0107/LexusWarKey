@@ -67,6 +67,25 @@ public sealed class GameWindowWatcher
     /// bottom-right, and a screen-fraction guess lands nowhere near it.
     ///
     /// Returns false when the game is not running or has no window yet.</summary>
+    /// <summary>Smallest client area that could plausibly be Warcraft drawing a game. Measured
+    /// against the real thing: a MINIMISED war3 still answers every geometry call, and answers
+    /// 237x39 at (-32000,-32000). Nothing rejected that, so while the game sat in the taskbar the
+    /// app believed the game was a 237x39 window off the left of the world — which told the player
+    /// their command card was "outside the Warcraft window" and to re-link it, and would have
+    /// seeded a fresh card into coordinates no click can ever reach.</summary>
+    private const int SmallestPlausibleGameWidth = 640;
+    private const int SmallestPlausibleGameHeight = 480;
+
+    /// <summary>Is this a rectangle the game could actually be drawing in? Kept free of the
+    /// P/Invokes so the rule itself can be tested without a real Warcraft on screen.
+    ///
+    /// "No answer" has to beat "a wrong answer" here. Every caller treats false as "I cannot see
+    /// the game" and falls back to the whole screen, which is merely imprecise. A bogus rectangle
+    /// is worse than imprecise: it seeds cards nothing can click and raises a re-link warning
+    /// against a card that was never wrong.</summary>
+    public static bool IsPlausibleGameArea(bool minimised, int width, int height) =>
+        !minimised && width >= SmallestPlausibleGameWidth && height >= SmallestPlausibleGameHeight;
+
     public bool TryGetGameArea(out int left, out int top, out int width, out int height)
     {
         left = top = width = height = 0;
@@ -74,7 +93,7 @@ public sealed class GameWindowWatcher
         var hwnd = FindGameWindow();
         if (hwnd == IntPtr.Zero
             || !NativeMethods.GetClientRect(hwnd, out var client)
-            || client.Right <= 0 || client.Bottom <= 0)
+            || !IsPlausibleGameArea(NativeMethods.IsIconic(hwnd), client.Right, client.Bottom))
             return false;
 
         var origin = new NativeMethods.POINT { X = 0, Y = 0 };
@@ -86,6 +105,15 @@ public sealed class GameWindowWatcher
         width = client.Right;
         height = client.Bottom;
         return true;
+    }
+
+    /// <summary>The game's window, for posting clicks straight at it. Zero when the game is not
+    /// running, has no window yet, or is minimised — a minimised window still answers geometry
+    /// calls, and the answers describe the taskbar rather than the game.</summary>
+    public IntPtr GameWindowForClicks()
+    {
+        var hwnd = FindGameWindow();
+        return hwnd != IntPtr.Zero && !NativeMethods.IsIconic(hwnd) ? hwnd : IntPtr.Zero;
     }
 
     /// <summary>The game's main window, focused or not.</summary>

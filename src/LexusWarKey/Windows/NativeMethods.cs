@@ -157,4 +157,27 @@ internal static class NativeMethods
 
     [DllImport("user32.dll")]
     internal static extern bool ClientToScreen(IntPtr hWnd, ref POINT p);
+
+    /// <summary>True while the window is minimised. Windows parks a minimised window at
+    /// (-32000,-32000) with a stub client area, and every geometry call still succeeds — so
+    /// without this the game's "position" reads as a real rectangle in another universe.</summary>
+    [DllImport("user32.dll")]
+    internal static extern bool IsIconic(IntPtr hWnd);
+
+    // ---- posting a click straight to the game window, without touching the cursor ----
+
+    internal const int WM_LBUTTONUP = 0x0202;
+    internal const int WM_RBUTTONDOWN = 0x0204;
+    internal const int WM_RBUTTONUP = 0x0205;
+    internal const int MK_LBUTTON = 0x0001;
+    internal const int MK_RBUTTON = 0x0002;
+
+    [DllImport("user32.dll")]
+    internal static extern bool ScreenToClient(IntPtr hWnd, ref POINT p);
+
+    /// <summary>Queues a message on the window's own queue and returns at once. Success means
+    /// the message was queued, never that the game acted on it — so the caller has to verify by
+    /// other means rather than trusting the return value.</summary>
+    [DllImport("user32.dll", CharSet = CharSet.Unicode, SetLastError = true)]
+    internal static extern bool PostMessage(IntPtr hWnd, uint msg, IntPtr wParam, IntPtr lParam);
 }
