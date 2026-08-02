@@ -174,14 +174,12 @@ public static class InputSender
         return ok;
     }
 
-    /// <summary>Milliseconds the button stays down. A press and release delivered back to back
-    /// occupy no time at all, and anything sampling input once a frame can look before and after
-    /// and never see the button down — the cursor visibly darts to the slot and no skill fires.
-    /// This outlasts a frame at 60fps with margin.</summary>
-    private const int HoldMs = 24;
-
-    /// <summary>Settle time before the press and after the release.</summary>
-    private const int SettleMs = 6;
+    /// <summary>Dwell before the press and after the release. Before, so the game has seen the
+    /// pointer arrive before the button arrives; after, so it has processed the click before the
+    /// pointer is taken away again. Eight milliseconds each is what the build with 365 logged
+    /// clicks across four days of real matches used, and the excursion the player feels is the
+    /// sum of the two.</summary>
+    private const int DwellMs = 8;
 
     /// <summary>Clicks by moving the real cursor to the point and back — about 35ms. Posting
     /// messages to the game window was tried first and looked perfect in code, but Warcraft
@@ -212,16 +210,27 @@ public static class InputSender
     /// fast flick is far outside a 35px slot. That is the intermittent miss: it fails exactly
     /// when the player is moving, which in a fight is most of the time.
     ///
-    /// And the button is held for <see cref="HoldMs"/> rather than released instantly, so a
-    /// press cannot fall between two of the game's input samples.
+    /// The press and the release go in that SAME array as each other. Holding the button down
+    /// across two calls was tried, on the theory that a zero-length press can fall between two of
+    /// the game's input samples. The theory is unsupported: the build that sent press and release
+    /// back to back is the one with 365 clicks across four days of real matches behind it, and a
+    /// press the game could not see would have failed every time rather than sometimes. What the
+    /// hold did buy was 24ms in which the button is logically down, the destination has to be
+    /// re-asserted on the release to stop the hand dragging it, and an interrupted process leaves
+    /// the button stuck. One array costs none of that: Windows guarantees nothing interleaves
+    /// inside it, so there is no window to defend.
     ///
     /// The player keeps aiming throughout. Restoring the cursor to where it was when the
     /// excursion STARTED throws that motion away — mid-flick that is a visible backwards yank
     /// several times a second, and it was being read as "the cursor gets stolen". The restore
-    /// lands on where the player was actually pointing by the end.</summary>
-    /// <returns>False when Windows refused the press. Worth reporting rather than swallowing:
-    /// if the game is elevated and this app is not, UIPI drops injected input silently, and
-    /// every cast then fails identically with nothing on screen to explain it.</returns>
+    /// lands on where the player was actually pointing by the end. That measurement only works
+    /// while nothing of ours moves the cursor after the click: a release that re-asserts the
+    /// destination resets the very difference being measured, which is the other reason the two
+    /// are now one event.</summary>
+    /// <returns>False when SendInput reported the batch short. Worth logging rather than
+    /// swallowing, but do not read it as an elevation test: Microsoft documents that neither the
+    /// return value nor GetLastError indicates a UIPI block, so a false here means something
+    /// else, and a true here proves nothing about whether the game acted on the press.</returns>
     public static bool ClickAt(int x, int y, bool rightClick)
     {
         NativeMethods.GetCursorPos(out var original);
@@ -235,13 +244,13 @@ public static class InputSender
             // announcing it, so anything watching the input stream rather than polling the
             // pointer never learns the cursor went anywhere.
             var moved = SendMouseBatch(move);
-            Thread.Sleep(SettleMs);
+            Thread.Sleep(DwellMs);
 
-            var pressed = SendMouseBatch(move.With(down));
-            Thread.Sleep(HoldMs);
-            var released = SendMouseBatch(move.With(up));   // re-asserted: the hand moved during the hold
-            Thread.Sleep(SettleMs);
-            return moved && pressed && released;
+            // Press and release in ONE array, each carrying the destination, so no report from
+            // the player's own mouse can land between them and no button can be left down.
+            var clicked = SendMouseBatch(move.With(down), move.With(up));
+            Thread.Sleep(DwellMs);
+            return moved && clicked;
         }
         finally
         {

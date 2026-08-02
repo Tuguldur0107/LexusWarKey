@@ -281,7 +281,7 @@ public sealed partial class MainViewModel : ObservableObject
                 : "chat line closed — remapping live again");
 
         _hook = new KeyboardHookService(_engine, _watcher.GameWindowForClicks,
-                                        () => _profile.UsePostedClicks,
+                                        () => _profile.PostClicksToGameWindow,
                                         () => (_profile.PostedSettleMs, _profile.PostedHoldMs));
         _hook.OverlayToggleRequested += () => Application.Current?.Dispatcher.BeginInvoke(ToggleOverlay);
         _hook.ConfigKeyPressed += vk => Application.Current?.Dispatcher.BeginInvoke(() => OnOverlayKey(vk));
@@ -857,11 +857,12 @@ public sealed partial class MainViewModel : ObservableObject
 
         problems.AddRange(RemapEngine.FindDeadBindings(_profile));
 
-        // The one failure with no symptom of its own. Elevated Warcraft plus a normal-privilege
-        // app means Windows throws away every click on the way in, without an error anywhere, and
-        // what the player sees is simply that none of their keys do anything. Nothing else in this
-        // panel matters if this is true, so it goes first.
-        if (_profile.UsePostedClicks && _watcher.GameIsOutOfReach())
+        // Only reachable for someone who has hand-edited postClicksToGameWindow on, which is an
+        // experiment rather than a supported setting. It is deliberately NOT shown on the cursor
+        // path: injected cursor movement and injected keystrokes are governed by the same
+        // integrity rule, the chat macros prove that rule is not biting, and this text told the
+        // player to run as administrator for a problem the evidence says they do not have.
+        if (_profile.PostClicksToGameWindow && _watcher.GameIsOutOfReach())
         {
             problems.Insert(0,
                 "Warcraft администратор эрхээр ажиллаж байна, энэ апп ажиллахгүй байна — " +

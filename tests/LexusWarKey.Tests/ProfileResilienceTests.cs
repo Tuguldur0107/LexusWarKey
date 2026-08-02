@@ -123,6 +123,39 @@ public class ProfileResilienceTests : IDisposable
     }
 
     [Fact]
+    public void The_file_a_broken_release_left_behind_loads_onto_the_cursor_with_its_bindings_intact()
+    {
+        // Copied from the profile of a player whose skills had stopped casting entirely, keys and
+        // all. v1.9.3-v1.9.5 wrote "usePostedClicks": true into every file that was ever saved,
+        // and a stored value beats a property initialiser — so the fix had to make the old key
+        // unrecognised rather than re-default it.
+        //
+        // The other half matters just as much: an unrecognised member must be SKIPPED, not
+        // rejected. If the reader ever tightens to Disallow, this file becomes "corrupt" and
+        // every player is silently reset to empty bindings. This goes through the real
+        // ProfileStore for exactly that reason.
+        WriteProfile("""
+                     {
+                       "inventory": [ { "fromVk": 32, "toVk": 103, "enabled": true } ],
+                       "skills": [],
+                       "usePostedClicks": true,
+                       "postedSettleMs": 24,
+                       "postedHoldMs": 30,
+                       "moveCursorForClicks": false,
+                       "enabled": true
+                     }
+                     """);
+
+        var store = Store();
+        var profile = store.Load();
+
+        Assert.False(profile.PostClicksToGameWindow);   // back on the path with matches behind it
+        Assert.Null(store.LoadWarning);                 // not read as corruption
+        Assert.Equal(32, profile.Inventory[0].FromVk);  // and nobody lost their bindings
+        Assert.True(profile.Inventory[0].Enabled);
+    }
+
+    [Fact]
     public void A_missing_file_is_a_first_run_not_a_failure()
     {
         var store = Store();

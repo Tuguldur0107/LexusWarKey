@@ -154,15 +154,41 @@ public class CommandCardTests
         Assert.Equal(VirtualKeys.NumPad7, d.SendVk);
     }
 
-    /// <summary>This assertion used to read the other way round, on the belief that Warcraft
-    /// ignores posted clicks. It does not. What was actually happening is that Warcraft runs
-    /// elevated here and the app did not, so Windows discarded every message on the way in
-    /// without reporting anything — PostMessage kept returning success. Run with the same
-    /// privilege as the game, the abilities fire and the cursor is never touched, which is the
-    /// only behaviour this player will accept.</summary>
+    /// <summary>This assertion has now read both ways round, each time on a reading of the field
+    /// evidence rather than a measurement. What settles it is the log: 365 cursor clicks across
+    /// four days of real matches, over which skills were lost only sometimes, against 266 posted
+    /// clicks across three releases out of which no ability has ever been seen to come.</summary>
     [Fact]
-    public void Posted_clicks_are_the_default_because_the_cursor_must_never_be_taken()
+    public void The_cursor_is_the_click_path_because_it_is_the_one_with_matches_behind_it()
     {
-        Assert.True(new WarKeyProfile().UsePostedClicks);
+        Assert.False(new WarKeyProfile().PostClicksToGameWindow);
+    }
+
+    /// <summary>The property was RENAMED rather than re-defaulted, and that is the whole safety
+    /// property of this release. v1.9.3-v1.9.5 wrote "usePostedClicks": true into the file of
+    /// every player who ever saved, and the serialiser writes a stored value over a property
+    /// initialiser — so flipping the default would have reached nobody and shipped a fourth
+    /// release that changed nothing. An unrecognised member is ignored instead, which puts every
+    /// existing profile on the cursor path on first launch. If anyone ever reintroduces a
+    /// property called UsePostedClicks, those stale trues come back to life and this fails.</summary>
+    [Fact]
+    public void A_profile_left_on_posted_clicks_by_the_old_releases_comes_back_on_the_cursor()
+    {
+        var json = """
+                   {
+                     "usePostedClicks": true,
+                     "postedSettleMs": 24,
+                     "postedHoldMs": 30,
+                     "moveCursorForClicks": false
+                   }
+                   """;
+        var loaded = System.Text.Json.JsonSerializer.Deserialize<WarKeyProfile>(
+            json, new System.Text.Json.JsonSerializerOptions
+            {
+                PropertyNamingPolicy = System.Text.Json.JsonNamingPolicy.CamelCase,
+            });
+
+        Assert.NotNull(loaded);
+        Assert.False(loaded!.PostClicksToGameWindow);
     }
 }

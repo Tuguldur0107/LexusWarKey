@@ -54,22 +54,40 @@ public sealed class WarKeyProfile
     /// old profile files still deserialise; no longer read anywhere.</summary>
     public bool MoveCursorForClicks { get; set; }
 
-    /// <summary>Post clicks to the game's window instead of moving the real cursor there. ON by
-    /// default: the player will not accept the cursor being taken, however briefly.
+    /// <summary>Post clicks to the game's window instead of moving the real cursor there.
+    /// OFF, and off for everyone: this is deliberately a DIFFERENT property name from the
+    /// "usePostedClicks" that v1.9.3-v1.9.5 wrote into every installed profile. Those files say
+    /// true, the serialiser ignores members it does not know, and so an update lands every
+    /// existing player back on the cursor — which is the entire point of renaming it rather than
+    /// flipping the old default, since flipping a default reaches nobody who has ever saved.
     ///
-    /// This needs the app to be running as administrator, and that is not a preference. Warcraft
-    /// here is launched elevated, and Windows will not let a normal-privilege process send window
-    /// messages to an elevated one — UIPI drops them without a word, so PostMessage returns
-    /// success, the log fills with clicks that were never delivered, and not one ability comes
-    /// out. The cursor path was unaffected because injected cursor movement goes through the
-    /// session input queue rather than the game's message queue.</summary>
-    public bool UsePostedClicks { get; set; } = true;
+    /// Why it is off. Three releases shipped this path and no ability has ever been observed to
+    /// come out of it. The two claims on the record that it worked — "verified in a real match"
+    /// (v1.9.3) and "it had at least worked every few presses" (v1.9.5) — are both contradicted
+    /// by the log they were written beside: not one posted click exists before the v1.9.3 commit,
+    /// and the 266 that follow arrive in mash bursts, twelve presses of one slot inside two
+    /// seconds, which is what a player does when nothing is happening. The cursor path in the
+    /// same log has 365 clicks across four days of real matches, over which the complaint was
+    /// that skills were lost SOMETIMES.
+    ///
+    /// Why the reason previously given here was wrong. It claimed Warcraft is launched elevated
+    /// and UIPI silently drops this app's messages. Warcraft 1.26a's manifest requests no
+    /// elevation, no war3.exe path carries the RUNASADMIN compatibility flag, GameRanger's own
+    /// manifest is asInvoker, and this account's interactive token is Medium integrity — so
+    /// there is no integrity gap for UIPI to act on. The chat macros say the same thing from the
+    /// other side: they reach the same window through SendInput, which UIPI governs by the same
+    /// predicate, and they work every day. Telling the player to run as administrator was advice
+    /// for a problem they do not have.
+    ///
+    /// It is kept, unreachable unless the file says so, because the question it was built to
+    /// answer is still open and this is the only cheap way to ask it again.</summary>
+    public bool PostClicksToGameWindow { get; set; }
 
     /// <summary>Milliseconds between telling the game where the pointer is and pressing the
-    /// button, and how long the button is then held. Both are in the profile, with no UI, purely
-    /// so they can be changed by editing the file and restarting — the right numbers depend on
-    /// the machine's frame rate, and shipping a release per guess is not a way to find them.
-    /// Zero settle reproduces the original back-to-back behaviour.</summary>
+    /// button, and how long the button is then held, for <see cref="PostClicksToGameWindow"/>.
+    /// In the profile with no UI so they can be changed by editing the file and restarting.
+    /// Neither of these numbers, nor any other, has yet been seen to cast anything; zero settle
+    /// reproduces v1.9.3's back-to-back behaviour exactly.</summary>
     public int PostedSettleMs { get; set; } = 24;
     public int PostedHoldMs { get; set; } = 30;
 

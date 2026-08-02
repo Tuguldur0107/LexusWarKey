@@ -19,9 +19,9 @@ public sealed class KeyboardHookService : IDisposable
     private readonly Func<IntPtr> _gameWindow;
 
     /// <summary>Whether to post clicks rather than move the cursor. Off unless the profile turns
-    /// it on — see <see cref="WarKeyProfile.UsePostedClicks"/> for why the better-looking path is
-    /// not the default one.</summary>
-    private readonly Func<bool> _usePostedClicks;
+    /// it on — see <see cref="WarKeyProfile.PostClicksToGameWindow"/> for why the better-looking
+    /// path is not the default one.</summary>
+    private readonly Func<bool> _postClicksToGameWindow;
 
     private readonly NativeMethods.LowLevelKeyboardProc _callback; // kept alive; a collected delegate crashes the hook
     private IntPtr _hook = IntPtr.Zero;
@@ -53,12 +53,12 @@ public sealed class KeyboardHookService : IDisposable
     private readonly Dictionary<int, long> _lastPressTicks = new();
 
     public KeyboardHookService(RemapEngine engine, Func<IntPtr>? gameWindow = null,
-                               Func<bool>? usePostedClicks = null,
+                               Func<bool>? postClicksToGameWindow = null,
                                Func<(int Settle, int Hold)>? postedTiming = null)
     {
         _engine = engine;
         _gameWindow = gameWindow ?? (() => IntPtr.Zero);
-        _usePostedClicks = usePostedClicks ?? (() => false);
+        _postClicksToGameWindow = postClicksToGameWindow ?? (() => false);
         _postedTiming = postedTiming ?? (() => (24, 30));
         _callback = HookCallback;
 
@@ -317,15 +317,19 @@ public sealed class KeyboardHookService : IDisposable
     /// for posted clicks.
     ///
     /// Posting is the better-looking mechanism and the messages demonstrably arrive — the log
-    /// fills with successful posts and never a refusal — but on this player's machine the
-    /// abilities do not come out, while the cursor path they had been playing with for days
-    /// does. So the cursor is what ships, and posting is a switch rather than the default.
+    /// fills with successful posts and never a refusal — but no ability has ever been seen to
+    /// come out of one, on this machine or any other, across three releases. The cursor path is
+    /// the one with real matches behind it. So the cursor is what ships and posting is a switch.
     ///
-    /// Which path ran goes in the log either way. Both times this decision has been made, it was
-    /// made from a summary of an experiment rather than from what the experiment recorded.</summary>
+    /// Which path ran is now named in the log line rather than left to be inferred. It was
+    /// inferred wrongly once already: the two mechanisms were told apart by how many
+    /// milliseconds each click took, one release was credited with another's field record, and
+    /// the fix that followed was aimed at code the player had never run. Both times this
+    /// decision was made before, it was made from a summary of an experiment rather than from
+    /// what the experiment recorded.</summary>
     private void Click(int x, int y, bool rightClick)
     {
-        if (!_usePostedClicks())
+        if (!_postClicksToGameWindow())
         {
             SafeClick(x, y, rightClick);
             return;
@@ -381,8 +385,8 @@ public sealed class KeyboardHookService : IDisposable
             var watch = System.Diagnostics.Stopwatch.StartNew();
             var ok = InputSender.ClickAt(x, y, rightClick);
             watch.Stop();
-            DiagnosticLog.Write($"click ({x},{y}) right={rightClick} {watch.ElapsedMilliseconds}ms"
-                                + (ok ? "" : " REFUSED by Windows (game elevated?)"));
+            DiagnosticLog.Write($"click ({x},{y}) right={rightClick} {watch.ElapsedMilliseconds}ms cursor"
+                                + (ok ? "" : " — SendInput REFUSED by Windows"));
         }
         catch { /* a failed click must never take the app down */ }
     }
