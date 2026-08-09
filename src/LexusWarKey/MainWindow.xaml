@@ -230,13 +230,23 @@
                                             </ItemsControl.ItemsPanel>
                                             <ItemsControl.ItemTemplate>
                                                 <DataTemplate>
-                                                    <Button Style="{StaticResource SlotButton}" Content="{Binding FromDisplay}"
-                                                            Tag="{Binding Label}"
-                                                            Command="{Binding CaptureFromCommand}"
-                                                            ToolTip="Дараад шинэ товчоо дар · Backspace = цэвэрлэх" />
+                                                    <StackPanel>
+                                                        <Button Style="{StaticResource SlotButton}" Content="{Binding FromDisplay}"
+                                                                Tag="{Binding Label}"
+                                                                Command="{Binding CaptureFromCommand}"
+                                                                ToolTip="Дараад шинэ товчоо дар · Backspace = цэвэрлэх" />
+                                                        <Button Style="{StaticResource KeyChip}" Content="{Binding ToDisplay}"
+                                                                Margin="0,2,0,4" HorizontalAlignment="Center"
+                                                                Command="{Binding CaptureToCommand}"
+                                                                ToolTip="Энэ нүдний ТОГЛООМЫН үсэг (CustomKeys) — апп клик хийхийн оронд энэ үсгийг илгээнэ.&#10;Дараад үсгээ дар · Backspace = клик горимд буцаах (—)"
+                                                                Visibility="{Binding DataContext.UseGameLetters, RelativeSource={RelativeSource AncestorType=Window}, Converter={StaticResource BoolToVis}}" />
+                                                    </StackPanel>
                                                 </DataTemplate>
                                             </ItemsControl.ItemTemplate>
                                         </ItemsControl>
+                                        <CheckBox Content="CustomKeys горим — клик биш, үсэг илгээх" IsChecked="{Binding UseGameLetters}"
+                                                  Margin="0,10,0,0" FontSize="11"
+                                                  ToolTip="Тоглоомын хавтсанд CustomKeys.txt суулгаж, Options → Gameplay → Custom Keyboard Shortcuts асаасан үед л хэрэглэнэ.&#10;Нүд бүр өөрийн тоглоомын үсэгтэй болж, апп курсор хөдөлгөлгүй тэр үсгийг илгээнэ.&#10;Үсэг нь давхцсан нүдийг «—» (клик) горимд үлдээж болно." />
                                     </StackPanel>
                                 </Border>
                             </StackPanel>

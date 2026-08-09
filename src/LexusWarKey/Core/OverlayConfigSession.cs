@@ -12,6 +12,9 @@ public enum OverlayStep
     ChoosingSlot,
     /// <summary>A slot is picked; the next key press becomes its binding.</summary>
     WaitingForKey,
+    /// <summary>CustomKeys mode, skill slots only: the next key press becomes the GAME letter
+    /// this cell answers to (the letter the app will send instead of clicking).</summary>
+    WaitingForLetter,
 }
 
 /// <summary>The in-game rebinding flow, kept free of Windows APIs so it can be tested.
@@ -34,9 +37,18 @@ public sealed class OverlayConfigSession
     public SlotGroup SelectedGroup { get; private set; }
     public int SelectedIndex { get; private set; } = -1;
 
-    public string Prompt => Step == OverlayStep.ChoosingSlot
-        ? "Нүд дээр дар (эсвэл 1–6 = эд зүйл), дараа нь товчоо дар"
-        : $"{GroupName(SelectedGroup)} {SelectedIndex + 1} — товчоо дар (Backspace = цэвэрлэх, Esc = болих)";
+    public string Prompt => Step switch
+    {
+        OverlayStep.ChoosingSlot =>
+            "Нүд дээр дар (эсвэл 1–6 = эд зүйл), дараа нь товчоо дар",
+        OverlayStep.WaitingForKey =>
+            $"{GroupName(SelectedGroup)} {SelectedIndex + 1} — товчоо дар (Backspace = цэвэрлэх, Esc = болих)",
+        _ =>
+            $"Чадвар {SelectedIndex + 1} — тоглоомын ҮСГИЙГ дар " +
+            $"(одоо: {LetterName(ListFor(SelectedGroup)[SelectedIndex].ToVk)} · Enter = хэвээр · Backspace = клик горим)",
+    };
+
+    private static string LetterName(int vk) => vk == 0 ? "клик" : VirtualKeys.NameOf(vk);
 
     private static string GroupName(SlotGroup group) => group == SlotGroup.Inventory ? "Эд зүйл" : "Чадвар";
 
@@ -60,7 +72,7 @@ public sealed class OverlayConfigSession
         if (vk == VirtualKeys.Escape)
         {
             // Esc backs out of a slot first, and only closes when nothing is selected.
-            if (Step == OverlayStep.WaitingForKey)
+            if (Step != OverlayStep.ChoosingSlot)
             {
                 Reset();
                 return true;
@@ -77,6 +89,26 @@ public sealed class OverlayConfigSession
         }
 
         var slot = ListFor(SelectedGroup)[SelectedIndex];
+
+        if (Step == OverlayStep.WaitingForLetter)
+        {
+            // A wheel notch or side button can arrive here mid-adjustment, but a mouse control
+            // cannot be a game LETTER — SendKey of a mouse pseudo-vk types nothing, and the
+            // cell would silently die. Stay in this step until a real key answers.
+            if (VirtualKeys.IsMouse(vk))
+                return true;
+
+            // The letter is what the app SENDS for this cell; empty means click the cell.
+            if (vk == VirtualKeys.Back)
+                slot.ToVk = 0;
+            else if (vk != VirtualKeys.Enter)
+                slot.ToVk = vk;
+
+            Reset();
+            _onChanged();
+            return true;
+        }
+
         if (vk == VirtualKeys.Back)
         {
             slot.FromVk = 0;
@@ -86,6 +118,18 @@ public sealed class OverlayConfigSession
         {
             slot.FromVk = vk;
             slot.Enabled = true;
+        }
+
+        // In CustomKeys mode a skill cell has a second half to its binding — the game letter
+        // it answers to. Offer it right away, pre-seeded with the scheme default, so the whole
+        // rebind stays one fluent mid-match gesture: click cell, press key, press letter.
+        if (SelectedGroup == SlotGroup.Skill && slot.Enabled && _profile.UseGameLetters)
+        {
+            if (slot.ToVk == 0 && SelectedIndex < WarKeyProfile.DefaultSlotLetters.Length)
+                slot.ToVk = WarKeyProfile.DefaultSlotLetters[SelectedIndex];
+            Step = OverlayStep.WaitingForLetter;
+            _onChanged();
+            return true;
         }
 
         Reset();

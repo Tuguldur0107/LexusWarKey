@@ -185,30 +185,55 @@ public sealed class RemapEngine
             }
         }
 
-        // Skills by POSITION: the ability in that command-card slot is clicked, whatever
-        // letter it happens to have. This is what makes random-ability modes (LoD) workable.
-        // Alt is passed through as a right-click, which is how auto-cast is toggled.
-        if (profile.SkillsUsePosition && profile.CommandCard.IsCalibrated)
+        // Skills: the bound key acts on the ability in that command-card CELL, whatever it is —
+        // the only stable handle in random-ability modes (LoD). Two mechanisms, per cell:
+        //
+        //  - CustomKeys mode (UseGameLetters + a letter on the cell): the generated
+        //    CustomKeys.txt already gave every LoD ability its cell's letter inside the game,
+        //    so the cell's key is simply remapped onto that LETTER. Pure keystroke: no cursor,
+        //    no click queue, and Alt+key (auto-cast) / Ctrl+key (learn) arrive as the game
+        //    expects because modifiers pass through untouched.
+        //
+        //  - Click fallback (no letter on the cell): the cell is clicked as before. This stays
+        //    for shadowed pairs — two picked skills sharing one letter, where the game answers
+        //    the letter with only one of them and the other is reachable by position alone.
+        if (profile.SkillsUsePosition)
         {
             var slot = profile.Skills.FindIndex(m => m.Enabled && m.FromVk == vk && m.FromVk != 0);
             if (slot >= 0)
             {
-                if (!isKeyDown)
-                    return new RemapDecision(RemapAction.ClickSlot); // swallow the key-up, click already happened
-                var point = profile.CommandCard.PointFor(slot);
-                return point is null
-                    ? RemapDecision.PassThrough
-                    : new RemapDecision(RemapAction.ClickSlot, ClickAt: point, RightClick: altHeld);
+                var skill = profile.Skills[slot];
+                if (profile.UseGameLetters && skill.ToVk != 0)
+                {
+                    // Key already IS the letter: the game handles it natively, and swallowing
+                    // it to re-send the same key would only add a hook round-trip.
+                    return skill.ToVk == vk
+                        ? RemapDecision.PassThrough
+                        : new RemapDecision(RemapAction.SendKey, skill.ToVk);
+                }
+
+                if (profile.CommandCard.IsCalibrated)
+                {
+                    if (!isKeyDown)
+                        return new RemapDecision(RemapAction.ClickSlot); // swallow the key-up, click already happened
+                    var point = profile.CommandCard.PointFor(slot);
+                    return point is null
+                        ? RemapDecision.PassThrough
+                        : new RemapDecision(RemapAction.ClickSlot, ClickAt: point, RightClick: altHeld);
+                }
+
+                // No calibration: a cell that happens to carry a target key still works as a
+                // plain remap — pre-position profiles have relied on this since v1.
+                return skill.IsUsable
+                    ? new RemapDecision(RemapAction.SendKey, skill.ToVk)
+                    : RemapDecision.PassThrough;
             }
         }
 
-        // Key remaps apply to both down and up so the game sees a complete keystroke.
+        // Inventory remaps apply to both down and up so the game sees a complete keystroke.
         // Modifiers are deliberately NOT consumed: Alt+key (auto-cast) and Ctrl+key
         // (learn skill) keep working, just with the remapped base key.
-        var maps = profile.SkillsUsePosition && profile.CommandCard.IsCalibrated
-            ? profile.Inventory
-            : profile.Inventory.Concat(profile.Skills);
-        var map = maps.FirstOrDefault(m => m.IsUsable && m.FromVk == vk);
+        var map = profile.Inventory.FirstOrDefault(m => m.IsUsable && m.FromVk == vk);
         return map is null ? RemapDecision.PassThrough : new RemapDecision(RemapAction.SendKey, map.ToVk);
     }
 
@@ -221,16 +246,18 @@ public sealed class RemapEngine
         if (!profile.Enabled)
             problems.Add("Апп унтраалттай байна — ямар ч товч ажиллахгүй. Дээрх 'Идэвхтэй'-г тэмдэглэ.");
 
-        var boundSkills = profile.Skills.Count(m => m.ClaimsKey);
-        if (boundSkills > 0)
+        // Cells running in CustomKeys letter mode never click, so they work uncalibrated; and a
+        // cell that is a usable plain remap falls back to remapping on an unlinked card (the v1
+        // promise). Only cells that would have to CLICK are dead without a linked card — the
+        // old count included the remap fallback and warned about keys that actually worked.
+        var clickingSkills = profile.Skills.Count(m =>
+            m.ClaimsKey && !(profile.UseGameLetters && m.ToVk != 0) && !m.IsUsable);
+        if (clickingSkills > 0 && !profile.CommandCard.IsCalibrated)
         {
-            if (!profile.CommandCard.IsCalibrated)
-            {
-                // Saying what is wrong without saying what to do is how this sat unresolved:
-                // calibration needs the game on screen, which is not obvious from the button.
-                problems.Add($"{boundSkills} чадварын товч ажиллахгүй байна — командын карт холбоогүй. " +
-                             "Тоглоом дотроо Ctrl+F6 дараад картаа тоглоомын карт дээр давхарлаж 'Холбох'-ыг дар.");
-            }
+            // Saying what is wrong without saying what to do is how this sat unresolved:
+            // calibration needs the game on screen, which is not obvious from the button.
+            problems.Add($"{clickingSkills} чадварын товч ажиллахгүй байна — командын карт холбоогүй. " +
+                         "Тоглоом дотроо Ctrl+F6 дараад картаа тоглоомын карт дээр давхарлаж 'Холбох'-ыг дар.");
         }
 
         var inventoryWithoutTarget = profile.Inventory.Count(m => m.ClaimsKey && m.ToVk == 0);

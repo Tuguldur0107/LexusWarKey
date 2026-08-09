@@ -50,6 +50,50 @@ public sealed class WarKeyProfile
     /// with no working position. NormaliseSlots forces it back on.</summary>
     public bool SkillsUsePosition { get; set; } = true;
 
+    /// <summary>CustomKeys mode: skill cells with a game letter (<see cref="KeyMap.ToVk"/>)
+    /// SEND that letter instead of clicking the cell — no cursor, no click queue, spam-safe.
+    ///
+    /// Opt-in, off by default, because it only makes sense once the player has installed the
+    /// generated CustomKeys.txt (which gives every LoD ability its cell's letter) and switched
+    /// Custom Keyboard Shortcuts on in the game. With the file absent the letters would land in
+    /// the game as dead keys, which looks exactly like the app being broken. A cell whose letter
+    /// is empty still clicks — that stays the fallback for shadowed same-letter pairs.</summary>
+    public bool UseGameLetters { get; set; }
+
+    /// <summary>The letters the generated CustomKeys.txt assigns per card cell, indexed by slot
+    /// (0-11; 0 = no letter). Middle row `- Q W G`, bottom row `R D F E` — the user's own Garena
+    /// layout, and the layout baked into outputs/customkeys/CustomKeys.txt. The hidden top row
+    /// and the middle row's first cell carry no letter.</summary>
+    public static readonly int[] DefaultSlotLetters =
+    {
+        0, 0, 0, 0,
+        0, 'Q', 'W', 'G',
+        'R', 'D', 'F', 'E',
+    };
+
+    /// <summary>Fills each skill cell's game letter with the CustomKeys scheme default, leaving
+    /// letters the user already set (or cleared deliberately? there is no way to tell — so only
+    /// empty ones are touched, which makes this safe to run repeatedly).</summary>
+    public void SeedSkillLetters()
+    {
+        for (var i = 0; i < Skills.Count && i < DefaultSlotLetters.Length; i++)
+            if (Skills[i].ToVk == 0)
+                Skills[i].ToVk = DefaultSlotLetters[i];
+    }
+
+    /// <summary>Undoes <see cref="SeedSkillLetters"/> when CustomKeys mode is switched off, so
+    /// the profile returns to exactly its pre-mode state instead of carrying letters that the
+    /// engine would then treat as plain remaps on an unlinked card. Only cells still holding
+    /// their slot's DEFAULT are cleared: a hand-set letter is the user's data and survives the
+    /// toggle — and a hand-set letter that happens to equal the default loses nothing, because
+    /// re-enabling the mode re-seeds that same value.</summary>
+    public void ClearSeededSkillLetters()
+    {
+        for (var i = 0; i < Skills.Count && i < DefaultSlotLetters.Length; i++)
+            if (Skills[i].ToVk == DefaultSlotLetters[i])
+                Skills[i].ToVk = 0;
+    }
+
     /// <summary>Legacy setting from when posting messages was the primary click path. Kept so
     /// old profile files still deserialise; no longer read anywhere.</summary>
     public bool MoveCursorForClicks { get; set; }

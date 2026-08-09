@@ -163,6 +163,23 @@ public sealed partial class MainViewModel : ObservableObject
     [ObservableProperty] private bool _startWithWindows;
     [ObservableProperty] private bool _minimiseToTray;
 
+    /// <summary>CustomKeys mode: skill cells send their game letter instead of clicking.
+    /// Turning it on seeds the scheme's default letters into empty cells, so the switch
+    /// works immediately instead of quietly doing nothing until each cell is edited.</summary>
+    [ObservableProperty] private bool _useGameLetters;
+
+    partial void OnUseGameLettersChanged(bool value)
+    {
+        _profile.UseGameLetters = value;
+        if (value)
+            _profile.SeedSkillLetters();
+        else
+            _profile.ClearSeededSkillLetters(); // hand-set letters survive; defaults do not linger
+        Save();
+        RefreshRowsFromProfile();
+        RefreshConflicts();
+    }
+
     private readonly StartupService _startup = new();
 
     [ObservableProperty] private bool _updateAvailable;
@@ -295,6 +312,7 @@ public sealed partial class MainViewModel : ObservableObject
         _isEnabled = _profile.Enabled;
         _onlyWhenGameFocused = _profile.OnlyWhenGameFocused;
         _minimiseToTray = _profile.MinimiseToTray;
+        _useGameLetters = _profile.UseGameLetters;
         _startWithWindows = _startup.IsEnabled();
         if (_startWithWindows)
             _startup.RepairPathIfNeeded();
@@ -575,7 +593,16 @@ public sealed partial class MainViewModel : ObservableObject
         if (isFrom) row.IsCapturingFrom = true; else row.IsCapturingTo = true;
         IsCapturing = true;
         _capture = new CaptureRequest(
-            vk => { row.SetKey(isFrom, vk); ClearFlags(); },
+            vk =>
+            {
+                // The FROM side happily binds the wheel or a side button; the TO side is a key
+                // the app will inject into the game, and no keyboard can type a mouse control.
+                // Keep waiting instead of storing a letter that could never be sent.
+                if (!isFrom && VirtualKeys.IsMouse(vk))
+                    return;
+                row.SetKey(isFrom, vk);
+                ClearFlags();
+            },
             ClearFlags);
 
         void ClearFlags()
@@ -779,7 +806,7 @@ public sealed partial class MainViewModel : ObservableObject
 
     private List<OverlaySlot> BuildSlots(SlotGroup group, IReadOnlyList<KeyMap> maps)
     {
-        var selected = _overlaySession.Step == OverlayStep.WaitingForKey && _overlaySession.SelectedGroup == group
+        var selected = _overlaySession.Step != OverlayStep.ChoosingSlot && _overlaySession.SelectedGroup == group
             ? _overlaySession.SelectedIndex
             : -1;
 
@@ -793,10 +820,23 @@ public sealed partial class MainViewModel : ObservableObject
             .Select(x => new OverlaySlot(
                 group,
                 x.index,
-                x.map.FromVk == 0 ? "—" : VirtualKeys.NameOf(x.map.FromVk),
+                CellText(group, x.map),
                 Background: x.index == selected ? "#40FFFFFF" : "#66000000",
                 Border: x.index == selected ? "#FFFFFFFF" : "#4DFFFFFF"))
             .ToList();
+    }
+
+    /// <summary>What a slot cell says about itself. In CustomKeys mode a skill cell carries two
+    /// halves — the player's key and the game letter it sends — and hiding the second half is
+    /// how a wrong letter would stay invisible until a cast fails mid-fight.</summary>
+    private string CellText(SlotGroup group, KeyMap map)
+    {
+        if (map.FromVk == 0)
+            return "—";
+        var from = VirtualKeys.NameOf(map.FromVk);
+        if (group != SlotGroup.Skill || !_profile.UseGameLetters)
+            return from;
+        return map.ToVk == 0 ? $"{from} 🖱" : $"{from}→{VirtualKeys.NameOf(map.ToVk)}";
     }
 
     // ---- rows ----
