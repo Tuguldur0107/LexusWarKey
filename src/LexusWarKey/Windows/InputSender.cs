@@ -254,27 +254,12 @@ public static class InputSender
         }
         finally
         {
-            // Simple restore to where the cursor was BEFORE the excursion.
-            //
-            // The prior "drift compensation" — restore to original + (afterwards - x, y) — was
-            // meant to preserve the motion the player made during the ~16-35ms excursion by
-            // measuring how far past our destination the cursor had drifted. That math is only
-            // right on a single monitor at 100% DPI with the game not overriding cursor state.
-            //
-            // In practice `afterwards` is not always a meaningful measurement of drift:
-            //  - a fullscreen Warcraft can hold the cursor at its own last-known position,
-            //    so GetCursorPos returns something unrelated to (x, y),
-            //  - multi-monitor + per-monitor DPI scaling maps points differently going in vs.
-            //    out, so the arithmetic overshoots (or undershoots) by whole monitors,
-            //  - Windows may deliver the player's real mouse reports between the click batch
-            //    and this GetCursorPos, in unrelated coordinates.
-            //
-            // When any of those go wrong the "compensation" moves the cursor to
-            // `original + (garbage - x)` — far off, once, per skill press — which the player
-            // sees as "the cursor jumps to the icon and then wanders off and stays there". The
-            // trade for correctness is losing up to ~35ms of the player's own motion; the trade
-            // for the compensation is the cursor sometimes landing on the wrong monitor.
-            NativeMethods.SetCursorPos(original.X, original.Y);
+            // Where the cursor ended up minus where we put it = how far the player moved
+            // during the excursion. Give that motion back instead of deleting it.
+            NativeMethods.GetCursorPos(out var afterwards);
+            NativeMethods.SetCursorPos(
+                original.X + (afterwards.X - x),
+                original.Y + (afterwards.Y - y));
         }
     }
 
