@@ -52,13 +52,22 @@ public sealed class WarKeyProfile
 
     /// <summary>CustomKeys mode: skill cells with a game letter (<see cref="KeyMap.ToVk"/>)
     /// SEND that letter instead of clicking the cell — no cursor, no click queue, spam-safe.
+    /// Same mechanism as inventory (SendKey), applied to skills.
     ///
-    /// Opt-in, off by default, because it only makes sense once the player has installed the
-    /// generated CustomKeys.txt (which gives every LoD ability its cell's letter) and switched
-    /// Custom Keyboard Shortcuts on in the game. With the file absent the letters would land in
-    /// the game as dead keys, which looks exactly like the app being broken. A cell whose letter
-    /// is empty still clicks — that stays the fallback for shadowed same-letter pairs.</summary>
+    /// Off by default because LoD is the harder mode this app has to serve, and LoD needs
+    /// a CustomKeys.txt installed in the game folder for the sent letters to hit their
+    /// intended abilities. Without that file — and without the game's Custom Keyboard
+    /// Shortcuts option turned on — the letters land as dead keys and every skill fails
+    /// silently, which looks exactly like the app being broken. Standard WC3/DotA where
+    /// each hero already has known keyboard letters can turn this on and get the no-cursor
+    /// path immediately; LoD players get there by installing CustomKeys.txt first.</summary>
     public bool UseGameLetters { get; set; }
+
+    /// <summary>Nullable so a profile written before v1.9.6 can be distinguished from a
+    /// fresh one: null = pre-migration file, true = seen since v1.9.6. Kept in case a
+    /// future migration decides differently, but for now NormaliseSlots only uses this
+    /// to note that the profile has been through the current code path once.</summary>
+    public bool? UseGameLettersMigrated { get; set; }
 
     /// <summary>The letters the generated CustomKeys.txt assigns per card cell, indexed by slot
     /// (0-11; 0 = no letter). Middle row `- Q W G`, bottom row `R D F E` — the user's own Garena
@@ -188,6 +197,11 @@ public sealed class WarKeyProfile
         for (var i = 0; i < SkillSlots; i++)
             profile.Skills.Add(new KeyMap());
 
+        // Migration flag is set on fresh profiles so NormaliseSlots does not treat them like
+        // an upgrade case. UseGameLetters stays off by default (LoD is the harder mode this
+        // has to serve, and it needs CustomKeys.txt installed for letters to work).
+        profile.UseGameLettersMigrated = true;
+
         profile.ChatMacros.Add(new ChatMacro { HotkeyVk = VirtualKeys.F2, Messages = { "-clear" } });
         return profile;
     }
@@ -235,6 +249,12 @@ public sealed class WarKeyProfile
         ChatMacros = mergedMacros;
 
         SkillsUsePosition = true;
+
+        // Do NOT auto-flip UseGameLetters on existing profiles. LoD players rely on the
+        // cursor click path (CustomKeys.txt not installed → letters do nothing) and flipping
+        // for them would silently break every skill. New profiles get the good default via
+        // CreateDefault; existing users opt in through the checkbox.
+        UseGameLettersMigrated ??= UseGameLetters;
 
         // The card's top row is Move/Stop/Hold/Attack and is no longer shown, so a binding
         // left there could never be seen or removed again. Clear it rather than leave a key
