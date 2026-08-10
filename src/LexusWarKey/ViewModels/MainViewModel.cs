@@ -180,15 +180,6 @@ public sealed partial class MainViewModel : ObservableObject
         RefreshConflicts();
     }
 
-    /// <summary>Turns on the PostMessage-based skill click path (no cursor excursion) instead
-    /// of the SetCursorPos-based one. Kept off by default because it did nothing on the
-    /// developer's machine — see <see cref="WarKeyProfile.PostClicksToGameWindow"/>. Exposed
-    /// as a checkbox for LoD-style setups where UseGameLetters cannot be used (abilities are
-    /// randomised each match, so their letter is not knowable in advance): if the user's game
-    /// acts on posted clicks, the 1-frame cursor jump on skill slots disappears entirely; if
-    /// it does not, the app falls back to the cursor-based click and nothing changes.</summary>
-    [ObservableProperty] private bool _postClicksToGameWindow;
-
     private readonly StartupService _startup = new();
 
     [ObservableProperty] private bool _updateAvailable;
@@ -322,7 +313,6 @@ public sealed partial class MainViewModel : ObservableObject
         _onlyWhenGameFocused = _profile.OnlyWhenGameFocused;
         _minimiseToTray = _profile.MinimiseToTray;
         _useGameLetters = _profile.UseGameLetters;
-        _postClicksToGameWindow = _profile.PostClicksToGameWindow;
         _startWithWindows = _startup.IsEnabled();
         if (_startWithWindows)
             _startup.RepairPathIfNeeded();
@@ -474,8 +464,6 @@ public sealed partial class MainViewModel : ObservableObject
     public ObservableCollection<ChatMacroRow> ChatRows { get; }
 
     partial void OnMinimiseToTrayChanged(bool value) { _profile.MinimiseToTray = value; Save(); }
-
-    partial void OnPostClicksToGameWindowChanged(bool value) { _profile.PostClicksToGameWindow = value; Save(); }
 
     partial void OnStartWithWindowsChanged(bool value)
     {

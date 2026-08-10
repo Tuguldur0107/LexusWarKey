@@ -405,9 +405,8 @@
                                     <TextBlock Style="{StaticResource Dim}" Margin="27,4,0,0" TextWrapping="Wrap"
                                                Text="Цонхыг хаахад апп taskbar-аас алга болж, цагны хажууд үлдэн ажилласаар байна. Дүрс дээр 2 дарж нээнэ, баруун товчоор бүрэн гарна." />
 
-                                    <CheckBox IsChecked="{Binding PostClicksToGameWindow}" Content="Skill товч дарахад курсор хөдөлгөхгүй (туршилтын)" Margin="0,14,0,0" />
-                                    <TextBlock Style="{StaticResource Dim}" Margin="27,4,0,0" TextWrapping="Wrap"
-                                               Text="Skill slot дээр товч дарахад курсор нүд рүү очиж дараад буцахын оронд, click мессежийг шууд тоглоомын цонхонд илгээнэ — курсор огт хөдлөхгүй тул 1 frame gүйх байхгүй болно. Warcraft posted click хүлээж авахгүй машинуудад ажиллахгүй байж болзошгүй тул туршиж үзнэ үү. Асуудалтай бол унтраахад өмнөх (курсортой) арга руу буцна." />
+                                    <TextBlock Style="{StaticResource Dim}" Margin="0,16,0,0" TextWrapping="Wrap"
+                                               Text="Тоглоом дотроос тохируулах: Ctrl + F6" />
                                 </StackPanel>
                             </Border>
 
