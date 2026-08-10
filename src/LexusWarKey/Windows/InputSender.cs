@@ -174,8 +174,14 @@ public static class InputSender
         return ok;
     }
 
-    /// <summary>Clicks by moving the real cursor to the point and back — atomic single-batch
-    /// send, cursor restored immediately in finally, total excursion in single-digit ms. Posting
+    /// <summary>Dwell before the press and after the release. Before, so the game has seen the
+    /// pointer arrive before the button arrives; after, so it has processed the click before the
+    /// pointer is taken away again. Eight milliseconds each is what the build with 365 logged
+    /// clicks across four days of real matches used, and the excursion the player feels is the
+    /// sum of the two.</summary>
+    private const int DwellMs = 8;
+
+    /// <summary>Clicks by moving the real cursor to the point and back — about 35ms. Posting
     /// messages to the game window was tried first and looked perfect in code, but Warcraft
     /// resolves clicks against the actual cursor position, so posted clicks were silently
     /// ignored (confirmed on this user's machine).
@@ -234,24 +240,17 @@ public static class InputSender
 
         try
         {
-            // Move → press → release in ONE atomic SendInput batch, immediately followed by a
-            // cursor restore in `finally`. Total excursion is measured in single-digit ms
-            // instead of the ~16-35ms of the two-batch + 2×8ms Sleep design, and the visible
-            // cursor jump collapses to at most one frame refresh — usually not visible at all.
-            //
-            // The previous shape (move, sleep 8ms, press+release, sleep 8ms) was written
-            // around a theory that "the game only works out which button the pointer is over
-            // once a frame — so the press gets resolved against wherever the pointer was
-            // BEFORE the move" and needed a dwell to force a frame boundary. That mattered
-            // when move and press-release were TWO SendInput calls, because Windows guarantees
-            // nothing about interleaving between calls: a real mouse report could land between
-            // them and change the pointer's understanding of "which button". Inside ONE call
-            // Windows delivers the events without interruption and each one carries the
-            // destination in its own input struct (MOUSEEVENTF_MOVE | MOUSEEVENTF_ABSOLUTE),
-            // so every event's coordinates are the slot, regardless of what the player's own
-            // hardware is reporting concurrently. No dwell is needed to keep them aligned.
-            var clicked = SendMouseBatch(move, move.With(down), move.With(up));
-            return clicked;
+            // A real move event, not SetCursorPos: SetCursorPos relocates the pointer without
+            // announcing it, so anything watching the input stream rather than polling the
+            // pointer never learns the cursor went anywhere.
+            var moved = SendMouseBatch(move);
+            Thread.Sleep(DwellMs);
+
+            // Press and release in ONE array, each carrying the destination, so no report from
+            // the player's own mouse can land between them and no button can be left down.
+            var clicked = SendMouseBatch(move.With(down), move.With(up));
+            Thread.Sleep(DwellMs);
+            return moved && clicked;
         }
         finally
         {
