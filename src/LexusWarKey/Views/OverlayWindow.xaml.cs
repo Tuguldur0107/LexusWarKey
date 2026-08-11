@@ -1,16 +1,12 @@
 using System.Windows;
-using System.Windows.Controls;
-using System.Windows.Controls.Primitives;
 using System.Windows.Input;
 using LexusWarKey.Core;
 using LexusWarKey.Windows;
 
 namespace LexusWarKey.Views;
 
-public sealed record OverlaySlot(SlotGroup Group, int Index, string KeyName, string Background, string Border)
+public sealed record OverlaySlot(int Index, string KeyName, string Background, string Border)
 {
-    /// <summary>1-based slot number shown in the cell's corner — the same number the adjust
-    /// window draws inside its ring, so "цагираг 7" is findable at a glance.</summary>
     public string Number => (Index + 1).ToString();
 }
 
@@ -20,10 +16,8 @@ public partial class OverlayWindow : Window
     private Point _dragStart;
     private double _startLeft, _startTop;
 
-    // Cell size is user-adjustable so the command-card grid can be laid exactly over the
-    // game's own buttons — that alignment IS the calibration (see Link_Click).
-    private double _cellWidth = 62;
-    private double _cellHeight = 46;
+    private const double CellWidth = 62;
+    private const double CellHeight = 46;
 
     public OverlayWindow()
     {
@@ -33,48 +27,14 @@ public partial class OverlayWindow : Window
         DragHandle.MouseLeftButtonDown += OnDragStart;
         DragHandle.MouseMove += OnDragMove;
         DragHandle.MouseLeftButtonUp += OnDragEnd;
-
-        ResizeGrip.DragDelta += OnResizeDelta;
-        ResizeGrip.DragCompleted += (_, _) => Resized?.Invoke(_cellWidth, _cellHeight);
         ApplyCellSize();
     }
 
-    /// <summary>Raised when a slot is clicked. The overlay never takes focus, so clicking it
-    /// does not pull the player out of the game.</summary>
-    public event Action<SlotGroup, int>? SlotClicked;
-
-    /// <summary>Raised after the user drags the panel, so the position can be remembered.</summary>
+    public event Action<int>? SlotClicked;
     public event Action<double, double>? Moved;
 
-    /// <summary>Raised after the user resizes the cells, so the size can be remembered.</summary>
-    public event Action<double, double>? Resized;
-
-    /// <summary>Raised when the user presses "Холбох" with the panel laid over the game's
-    /// command card: carries the screen centres of the first and last VISIBLE cells — slot 5
-    /// and slot 12 — which is the two-corner calibration, captured from where the user aligned
-    /// the grid rather than from any corner-clicking ceremony. The caller extrapolates the
-    /// hidden top row so the stored card stays a full 4x3 and nothing moves.</summary>
-    public event Action<ScreenPoint, ScreenPoint>? LinkRequested;
-
-    /// <summary>Raised when the user asks to SEE where the twelve slots will click.</summary>
-    public event Action? MarkersRequested;
-
-    /// <summary>The ring-adjust controls, which live on this panel rather than in a window of
-    /// their own — adjusting the rings should not put a third surface on top of the game.</summary>
-    public event Action? AdjustSaveRequested;
-    public event Action? AdjustTidyRequested;
-    public event Action? AdjustCancelRequested;
-
-    /// <summary>Swaps the button row between its normal controls and the ring-adjust ones.</summary>
-    public void SetAdjusting(bool adjusting)
+    public void ShowSlots(IReadOnlyList<OverlaySlot> skills, string prompt)
     {
-        NormalButtons.Visibility = adjusting ? Visibility.Collapsed : Visibility.Visible;
-        AdjustButtons.Visibility = adjusting ? Visibility.Visible : Visibility.Collapsed;
-    }
-
-    public void ShowSlots(IReadOnlyList<OverlaySlot> inventory, IReadOnlyList<OverlaySlot> skills, string prompt)
-    {
-        InventoryList.ItemsSource = inventory;
         SkillList.ItemsSource = skills;
         PromptText.Text = prompt;
         if (!IsVisible)
@@ -91,34 +51,15 @@ public partial class OverlayWindow : Window
         }
         else
         {
-            // First run (or a screen that no longer exists): sit out of the way, top-right.
-            Left = area.Right - Math.Max(ActualWidth, 520) - 24;
+            Left = area.Right - Math.Max(ActualWidth, 320) - 24;
             Top = area.Top + 24;
         }
     }
 
-    public void SetCellSize(double? width, double? height)
-    {
-        if (width is { } w && w is >= 30 and <= 240)
-            _cellWidth = w;
-        if (height is { } h && h is >= 24 and <= 200)
-            _cellHeight = h;
-        ApplyCellSize();
-    }
-
     private void ApplyCellSize()
     {
-        InventoryList.Width = _cellWidth * 2;
-        InventoryList.Height = _cellHeight * 3;
-        SkillList.Width = _cellWidth * CommandCard.Columns;
-        SkillList.Height = _cellHeight * CommandCard.BindableRows;
-    }
-
-    private void OnResizeDelta(object sender, DragDeltaEventArgs e)
-    {
-        _cellWidth = Math.Clamp(_cellWidth + e.HorizontalChange / CommandCard.Columns, 30, 240);
-        _cellHeight = Math.Clamp(_cellHeight + e.VerticalChange / CommandCard.BindableRows, 24, 200);
-        ApplyCellSize();
+        SkillList.Width = CellWidth * WarKeyProfile.SkillColumns;
+        SkillList.Height = CellHeight * WarKeyProfile.SkillRows;
     }
 
     private static bool IsOnScreen(double left, double top, Rect area) =>
@@ -129,57 +70,11 @@ public partial class OverlayWindow : Window
     {
         if (sender is FrameworkElement { Tag: OverlaySlot slot })
         {
-            SlotClicked?.Invoke(slot.Group, slot.Index);
+            SlotClicked?.Invoke(slot.Index);
             e.Handled = true;
         }
     }
 
-    private void Link_Click(object sender, MouseButtonEventArgs e)
-    {
-        e.Handled = true;
-        var first = CellCentreOnScreen(0);
-        var last = CellCentreOnScreen(CommandCard.BindableSlots - 1);
-        if (first is not null && last is not null)
-            LinkRequested?.Invoke(first, last);
-    }
-
-    private void Markers_Click(object sender, MouseButtonEventArgs e)
-    {
-        e.Handled = true;
-        MarkersRequested?.Invoke();
-    }
-
-    private void AdjustSave_Click(object sender, MouseButtonEventArgs e)
-    {
-        e.Handled = true;
-        AdjustSaveRequested?.Invoke();
-    }
-
-    private void AdjustTidy_Click(object sender, MouseButtonEventArgs e)
-    {
-        e.Handled = true;
-        AdjustTidyRequested?.Invoke();
-    }
-
-    private void AdjustCancel_Click(object sender, MouseButtonEventArgs e)
-    {
-        e.Handled = true;
-        AdjustCancelRequested?.Invoke();
-    }
-
-    /// <summary>Physical screen centre of a command-card cell. WPF under PerMonitorV2 returns
-    /// device pixels from PointToScreen, the same space the click sender works in.</summary>
-    private ScreenPoint? CellCentreOnScreen(int index)
-    {
-        if (SkillList.ItemContainerGenerator.ContainerFromIndex(index) is not FrameworkElement cell
-            || cell.ActualWidth <= 0)
-            return null;
-
-        var centre = cell.PointToScreen(new Point(cell.ActualWidth / 2, cell.ActualHeight / 2));
-        return new ScreenPoint((int)Math.Round(centre.X), (int)Math.Round(centre.Y));
-    }
-
-    // Manual drag: DragMove() wants an activatable window, and this one deliberately is not.
     private void OnDragStart(object sender, MouseButtonEventArgs e)
     {
         _dragging = true;

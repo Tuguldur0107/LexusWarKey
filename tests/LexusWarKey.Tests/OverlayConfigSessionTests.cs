@@ -3,8 +3,6 @@ using Xunit;
 
 namespace LexusWarKey.Tests;
 
-/// <summary>The in-game rebinding flow: the whole point is that the user never leaves the game,
-/// so every slot — including empty ones — must be reachable and bindable.</summary>
 public class OverlayConfigSessionTests
 {
     private static (OverlayConfigSession Session, WarKeyProfile Profile, Func<int> Saves) Create()
@@ -16,67 +14,49 @@ public class OverlayConfigSessionTests
     }
 
     [Fact]
-    public void An_EMPTY_inventory_slot_can_be_given_a_key()
+    public void Empty_skill_slot_is_bound_by_user_key_then_game_letter()
     {
         var (session, profile, saves) = Create();
-        Assert.Equal(0, profile.Inventory[4].FromVk); // starts empty by default
 
-        session.SelectSlot(SlotGroup.Inventory, 4);
-        Assert.True(session.HandleKey('F'));
-
-        Assert.Equal('F', profile.Inventory[4].FromVk);
-        Assert.True(profile.Inventory[4].Enabled);
-        Assert.Equal(1, saves());
-    }
-
-    [Fact]
-    public void An_EMPTY_skill_slot_can_be_given_a_key()
-    {
-        var (session, profile, saves) = Create();
-        Assert.All(profile.Skills, s => Assert.Equal(0, s.FromVk)); // all empty by default
-
-        session.SelectSlot(SlotGroup.Skill, 2);
+        session.SelectSlot(2);
         Assert.True(session.HandleKey('E'));
+        Assert.Equal(OverlayStep.WaitingForLetter, session.Step);
+        Assert.Equal(0, saves());
+
+        Assert.True(session.HandleKey('R'));
 
         Assert.Equal('E', profile.Skills[2].FromVk);
+        Assert.Equal('R', profile.Skills[2].ToVk);
         Assert.True(profile.Skills[2].Enabled);
         Assert.Equal(1, saves());
     }
 
     [Fact]
-    public void Every_slot_in_both_grids_is_selectable()
+    public void Every_skill_slot_is_selectable()
     {
         var (session, profile, _) = Create();
 
-        for (var i = 0; i < profile.Inventory.Count; i++)
-        {
-            session.SelectSlot(SlotGroup.Inventory, i);
-            Assert.Equal(OverlayStep.WaitingForKey, session.Step);
-            Assert.Equal(SlotGroup.Inventory, session.SelectedGroup);
-            Assert.Equal(i, session.SelectedIndex);
-            session.Reset();
-        }
-
         for (var i = 0; i < profile.Skills.Count; i++)
         {
-            session.SelectSlot(SlotGroup.Skill, i);
-            Assert.Equal(SlotGroup.Skill, session.SelectedGroup);
+            session.SelectSlot(i);
+            Assert.Equal(OverlayStep.WaitingForKey, session.Step);
             Assert.Equal(i, session.SelectedIndex);
             session.Reset();
         }
     }
 
     [Fact]
-    public void Digit_shortcut_still_picks_inventory_slots()
+    public void Digit_shortcut_picks_skill_slots()
     {
         var (session, profile, _) = Create();
 
         Assert.True(session.HandleKey('3'));
         Assert.Equal(OverlayStep.WaitingForKey, session.Step);
-        Assert.Equal(SlotGroup.Inventory, session.SelectedGroup);
         session.HandleKey('G');
+        session.HandleKey('T');
 
-        Assert.Equal('G', profile.Inventory[2].FromVk);
+        Assert.Equal('G', profile.Skills[2].FromVk);
+        Assert.Equal('T', profile.Skills[2].ToVk);
     }
 
     [Fact]
@@ -84,23 +64,25 @@ public class OverlayConfigSessionTests
     {
         var (session, profile, _) = Create();
 
-        session.SelectSlot(SlotGroup.Skill, 0);
-        session.HandleKey('4'); // a digit as the binding, not as a slot picker
+        session.SelectSlot(0);
+        session.HandleKey('4');
 
         Assert.Equal('4', profile.Skills[0].FromVk);
+        Assert.Equal(OverlayStep.WaitingForLetter, session.Step);
     }
 
     [Fact]
     public void Backspace_clears_the_selected_slot()
     {
         var (session, profile, _) = Create();
-        Assert.Equal(VirtualKeys.Space, profile.Inventory[0].FromVk);
+        profile.Skills[0] = new KeyMap { FromVk = 'Q', ToVk = 'T', Enabled = true };
 
-        session.SelectSlot(SlotGroup.Inventory, 0);
+        session.SelectSlot(0);
         session.HandleKey(VirtualKeys.Back);
 
-        Assert.Equal(0, profile.Inventory[0].FromVk);
-        Assert.False(profile.Inventory[0].Enabled);
+        Assert.Equal(0, profile.Skills[0].FromVk);
+        Assert.Equal(0, profile.Skills[0].ToVk);
+        Assert.False(profile.Skills[0].Enabled);
     }
 
     [Fact]
@@ -108,11 +90,11 @@ public class OverlayConfigSessionTests
     {
         var (session, _, _) = Create();
 
-        session.SelectSlot(SlotGroup.Skill, 1);
-        Assert.True(session.HandleKey(VirtualKeys.Escape));      // deselects, stays open
+        session.SelectSlot(1);
+        Assert.True(session.HandleKey(VirtualKeys.Escape));
         Assert.Equal(OverlayStep.ChoosingSlot, session.Step);
 
-        Assert.False(session.HandleKey(VirtualKeys.Escape));     // now closes
+        Assert.False(session.HandleKey(VirtualKeys.Escape));
     }
 
     [Fact]
@@ -120,48 +102,45 @@ public class OverlayConfigSessionTests
     {
         var (session, _, _) = Create();
 
-        session.SelectSlot(SlotGroup.Skill, 99);
-        session.SelectSlot(SlotGroup.Inventory, -1);
+        session.SelectSlot(99);
 
         Assert.Equal(OverlayStep.ChoosingSlot, session.Step);
     }
 
     [Fact]
-    public void Binding_the_same_key_in_both_grids_is_reported_as_a_conflict()
+    public void Binding_the_same_key_twice_is_reported_as_a_conflict()
     {
         var (session, profile, _) = Create();
 
-        session.SelectSlot(SlotGroup.Inventory, 3);
+        session.SelectSlot(3);
         session.HandleKey('R');
-        session.SelectSlot(SlotGroup.Skill, 3);
+        session.HandleKey('T');
+        session.SelectSlot(4);
         session.HandleKey('R');
+        session.HandleKey('E');
 
         Assert.Contains('R', RemapEngine.FindConflicts(profile));
     }
 
     [Fact]
-    public void Prompt_names_the_grid_being_edited()
+    public void Prompt_names_the_skill_being_edited()
     {
         var (session, _, _) = Create();
-        Assert.Contains("Нүд дээр дар", session.Prompt);
+        Assert.Contains("Select skill", session.Prompt);
 
-        session.SelectSlot(SlotGroup.Skill, 5);
-        Assert.Contains("Чадвар 6", session.Prompt);
-
-        session.Reset();
-        session.SelectSlot(SlotGroup.Inventory, 1);
-        Assert.Contains("Эд зүйл 2", session.Prompt);
+        session.SelectSlot(5);
+        Assert.Contains("Skill 6", session.Prompt);
     }
 
     [Theory]
     [InlineData('1', 0)]
-    [InlineData('6', 5)]
+    [InlineData('8', 7)]
     [InlineData(VirtualKeys.NumPad1, 0)]
-    [InlineData(VirtualKeys.NumPad6, 5)]
-    [InlineData('7', -1)]
+    [InlineData(VirtualKeys.NumPad8, 7)]
+    [InlineData('9', -1)]
     [InlineData('A', -1)]
-    public void Inventory_digit_mapping_covers_both_keyboards(int vk, int expected)
+    public void Skill_digit_mapping_covers_both_keyboards(int vk, int expected)
     {
-        Assert.Equal(expected, OverlayConfigSession.InventoryIndexFor(vk));
+        Assert.Equal(expected, OverlayConfigSession.SkillIndexFor(vk));
     }
 }

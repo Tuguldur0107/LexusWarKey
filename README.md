@@ -1,106 +1,60 @@
 # Lexus WarKey
 
-Warcraft III classic (1.24e / 1.26a) — эд зүйлийн товч, чадварын товч, Quick Chat.
-**Garena шаардлагагүй**, тиймээс GameRanger дээр сүлжээний зөрчил үүсгэхгүй.
+Lexus WarKey is a small Warcraft III / Dota 1 skill hotkey remapper.
 
-[**⬇ Татах (сүүлийн хувилбар)**](https://github.com/Tuguldur0107/LexusWarKey/releases/latest)
+It has two jobs:
 
-Суулгах шаардлагагүй — нэг `.exe`, 2 удаа дараад ажиллана. .NET хэрэггүй.
+- **Warkey**: map each skill cell to the key you want to press and the Warcraft letter the skill currently uses.
+- **QuickChat**: configure exactly two one-key chat messages.
 
-**Зөвхөн Lexus Discord серверийн гишүүдэд.** Сервер дээрээ `/warkey` гэж бичихэд бот
-30 хоногийн идэвхжүүлэх код өгнө (tier-тэй байх шаардлагатай). Кодоо аппын шар хэсэгт
-буулгаад Идэвхжүүлэх дарна — дараа нь сард нэг удаа шинэчилнэ.
+There is no inventory binding, mouse binding, profile switching, account system, activation gate, updater, macro editor, scripting, admin flow, anti-cheat bypass, process hiding, or Warcraft file editing.
 
----
+## Workflow
 
-## Юу хийдэг вэ
+1. Open Lexus WarKey.
+2. Configure the 8 skill cells:
+   - top key = the key you press
+   - bottom key = the Warcraft skill letter sent to the game
+3. Optionally configure QuickChat 1 and QuickChat 2.
+4. Start Warcraft / Dota 1.
+5. During a game, press **Ctrl + F6** to show the small in-game Warkey window.
+6. Pick a skill cell, press your key, then press the Warcraft letter for that skill.
+7. Press **Ctrl + F6** again or Esc to hide the window and keep playing.
 
-| Хэсэг | Тайлбар |
-|---|---|
-| **Эд зүйл (2×3)** | Тоглоомын цүнхтэй адил байрлал. Space, Tab гэх мэт өөрийн товчоо оноож болно |
-| **Командын карт (4×2)** | Тоглоомын картын чадвар агуулдаг 8 нүд (5–12). Дээд эгнээ нь Move/Stop/Hold/Attack тул харуулдаггүй. **Байрлалаар нь дардаг** тул LoD шиг санамсаргүй чадвартай горимд ажиллана — үсэг нь юу ч байсан хамаагүй |
-| **Quick Chat** | Нэг товч дарахад олон мессеж дараалан илгээнэ (`-clear`, `-ii`, `-si` …). **"Зөвхөн багтаа"** тэмдэглэвэл холбоотон л харна (Ctrl+Enter), эсрэг тохиолдолд дайсан ч харна (Shift+Enter) |
-| **Хулганы товч** | Дугуй ↑/↓, дунд товч, хажуугийн 4/5-ыг ч оноож болно. Оноогоогүй товч хэвээрээ ажиллана |
-| **Тоглоом дотроос тохируулах** | **Ctrl + F6** — фокус булаадаггүй самбар гарч ирнэ, alt-tab хийх шаардлагагүй |
+Settings are saved to:
 
-**Чат бичиж байхад товч солилт автоматаар зогсдог.** Enter дарж тоглоомын чат нээхэд апп
-хажуу тийш зайлж, бичсэн үсэг чинь хэвээрээ ордог — Space нь Num7 болж хувирахгүй, чадварын
-товч чинь бичиж байхад ажиллахгүй. Enter (илгээх) эсвэл Esc (болих) дарахад буцаад асна.
-Толгой хэсэгт **"Чат нээлттэй"** гэж харагдана.
+```text
+%LocalAppData%\LexusWarKey\profile.json
+```
 
-## Тохиргоо
+## Runtime Behavior
 
-- **Windows-тэй хамт асаах** — эхний удаа нээхэд асууна, дараа нь толгой хэсгээс сольж болно.
-  Зөвхөн таны хэрэглэгчид хамаарна (админ эрх шаардахгүй), Task Manager → Startup-аас ч удирдана.
-- **Хаахад tray-д үлдэх** — цонхыг хаахад апп taskbar-аас алга болж, мэдэгдлийн хэсэгт
-  (цагны хажуу) үлдэн ажилласаар байна. Дүрс дээр 2 удаа дарж нээнэ, баруун товчоор гарна.
+- Remapping runs only while Warcraft III is the focused window.
+- One physical key sends one Warcraft key.
+- Key-down and key-up are both remapped, so Warcraft receives a complete keystroke.
+- The hook ignores keys injected by Lexus WarKey, preventing remap loops.
+- Held remap keys remember the exact injected target until key-up, preventing stuck keys if mappings change mid-press.
+- Enter/Esc are never remapped because they control Warcraft chat.
+- While Warcraft chat is open, all remaps and QuickChat actions pass through.
+- Closing the main window hides it to the tray so the remapper keeps running.
 
-## Чадварын байрлалын горим (LoD)
+## Manual Warcraft Checklist
 
-LoD зэрэг горимд чадварууд санамсаргүй ирдэг тул үсэг нь урьдчилан мэдэгддэггүй, бүр
-давхцаж ч болно. Тиймээс энэ апп чадварыг үсгээр нь биш **байрлалаар** нь дардаг:
-таны товч командын картын тухайн НҮДИЙГ дарна — дотор нь ямар чадвар байх нь хамаагүй.
+Test this in a real Warcraft/Dota game before release:
 
-Нэг удаа холбоно:
+1. `Q -> T` casts a skill whose in-game letter is `T`.
+2. Key-up is released correctly after holding and releasing the remapped key.
+3. Change a skill binding through **Ctrl + F6** while Warcraft is open.
+4. Close the Ctrl+F6 window and confirm Warcraft input continues normally.
+5. Open chat with Enter and type a bound key; it should type the original letter, not cast.
+6. Send/cancel chat with Enter/Esc and confirm remapping resumes.
+7. Trigger QuickChat 1 and QuickChat 2.
+8. Confirm duplicate source keys are reported in the main window.
+9. Restart the app and confirm skill/QuickChat settings persisted.
 
-1. Тоглоомдоо ороод **Ctrl + F6** — самбар гарч ирнэ.
-2. Самбарын "Командын карт" торыг чирж, ◢ булангаар нь татаж **тоглоомын командын карт
-   дээр яг давхарла** (нүд нүдэн дээрээ буутал).
-3. **🔗 Холбох** дар — болоо. Товч бүр өөрийн нүдээ дарна.
-4. **📍 Шалгах · Засах** — нүд бүрийг чухам хаана дарахыг дугаартай цагирагаар харуулна.
-   Цагираг буруу байрласан бол **чирж зөөгөөд 💾 Хадгалах**. Товчнууд самбар дээрээ
-   гарч ирнэ — нэмэлт цонх нээгдэхгүй.
-5. Ctrl + F6 дарж самбараа хааж тоглоно.
-
-Дарахдаа курсорыг нүд рүү маш богино хугацаанд аваачиж дараад буцаадаг — Garena WarKey-ийн
-ажилладагтай яг ижил арга. Курсор буцаж ирдэг тул тулааны дунд ч мэдрэгдэхгүй шахам.
-
-## CustomKeys горим (кликгүй чадвар — LoD)
-
-Тоглоомын хавтсанд LoD-д зориулж үүсгэсэн `CustomKeys.txt` суулгаад (Options →
-Gameplay → Custom Keyboard Shortcuts: ON) аппын **Товч** таб дээрх «CustomKeys
-горим»-ыг асаавал чадварын нүд бүр тоглоомын өөрийн үсэгтэй болно: дунд эгнээ
-`- Q W G`, доод эгнээ `R D F E`. Ингэхэд апп курсор хөдөлгөж дарахын оронд тэр
-үсгийг шууд илгээдэг тул хамгийн хурдан даралтад ч алдахгүй. Хоёр чадвар нэг
-үсэгтэй давхцсан нүдэнд л үсгийг нь Backspace-ээр арилгаж хуучин клик горимд
-үлдээнэ. Ctrl+F6 самбараас нүд → товч → үсэг гэсэн дарааллаар тоглолтын дундуур
-ч тохируулна.
-
-## Аюулгүй байдал
-
-Энэ апп зөвхөн **оролтыг хөрвүүлдэг**: нэг даралт = нэг үйлдэл.
-
-- Тоглоом руу код оруулдаггүй (no DLL injection)
-- Тоглоомын санах ойд хүрдэггүй
-- `war3.exe`-г өөрчилдөггүй
-- Автоматаар юу ч хийдэггүй — товч дарахгүй бол юу ч болохгүй
-- "Зөвхөн Warcraft дотор" горим анхдагчаар асаалттай — бусад программд товч хөндөгдөхгүй
-
-Тохиргоо: `%LocalAppData%\LexusWarKey\profile.json`
-
-## Шинэчлэлт
-
-Апп нээгдэх бүрд шинэ хувилбар байгаа эсэхийг шалгаад, байвал **өөрөө татаж суулгаад дахин
-нээгдэнэ** — бүх гишүүн ижил хувилбартай явахын тулд үүнийг унтраах боломжгүй. Татах эх
-сурвалжийг зөвхөн энэ репогийн албан ёсны release-ээр хязгаарласан бөгөөд гарын үсэг (SHA256)
-таарахгүй бол суулгахгүй.
-
-## Бүтээгч
-
-**Lil**
-
-## Хөгжүүлэх
+## Development
 
 ```bash
 dotnet test tests/LexusWarKey.Tests
 dotnet run --project src/LexusWarKey
 ```
-
-Шинэ хувилбар гаргах:
-
-```bash
-git tag v1.1.0
-git push origin v1.1.0
-```
-
-GitHub Actions тестийг ажиллуулж, portable exe бүтээж, release-д хавсаргана.

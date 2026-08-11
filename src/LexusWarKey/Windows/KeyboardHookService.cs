@@ -1,4 +1,4 @@
-using LexusWarKey.Core;
+﻿using LexusWarKey.Core;
 
 namespace LexusWarKey.Windows;
 
@@ -8,20 +8,11 @@ namespace LexusWarKey.Windows;
 /// Two rules keep this safe:
 ///  - anything we inject carries <see cref="InputSender.Signature"/> and is ignored on the way
 ///    back in, so a remap can never feed itself;
-///  - the hook callback does almost nothing: chat macros are handed to a worker thread, because
+///  - the hook callback does almost nothing: QuickChat typing is handed to a worker thread, because
 ///    blocking inside a keyboard hook freezes input for the whole desktop.</summary>
 public sealed class KeyboardHookService : IDisposable
 {
     private readonly RemapEngine _engine;
-
-    /// <summary>The game window to post clicks at, or Zero when it cannot be found. Asked afresh
-    /// per click: the game is started, alt-tabbed away from and closed underneath us.</summary>
-    private readonly Func<IntPtr> _gameWindow;
-
-    /// <summary>Whether to post clicks rather than move the cursor. Off unless the profile turns
-    /// it on — see <see cref="WarKeyProfile.PostClicksToGameWindow"/> for why the better-looking
-    /// path is not the default one.</summary>
-    private readonly Func<bool> _postClicksToGameWindow;
 
     private readonly NativeMethods.LowLevelKeyboardProc _callback; // kept alive; a collected delegate crashes the hook
     private IntPtr _hook = IntPtr.Zero;
@@ -30,48 +21,20 @@ public sealed class KeyboardHookService : IDisposable
     /// <summary>Which of the app's own shortcuts are physically held, so auto-repeat fires once.</summary>
     private readonly HashSet<int> _shortcutHeld = new();
 
-    /// <summary>Macro and skill keys currently held, so OS auto-repeat fires each once.</summary>
+    /// <summary>QuickChat and skill keys currently held, so OS auto-repeat fires each once.</summary>
     private readonly HashSet<int> _actionHeld = new();
 
-    /// <summary>1 while a chat macro is typing. Two at once would interleave keystrokes.</summary>
-    private int _macroInFlight;
+    /// <summary>The target key sent for each held physical remap key. Key-up must release the
+    /// same target key even if the user changes the binding while the physical key is down.</summary>
+    private readonly Dictionary<int, int> _heldRemaps = new();
 
-    /// <summary>All clicks run through one thread, one after another. On the ThreadPool two
-    /// rapid casts could interleave their cursor excursions — the cursor ping-ponged and both
-    /// clicks could land wrong. Twelve deep: at ~20ms per excursion that is a quarter second
-    /// of combo, and a dropped finisher is indistinguishable from a misfire.</summary>
-    private readonly System.Collections.Concurrent.BlockingCollection<(int X, int Y, bool Right)> _clickQueue = new(12);
+    /// <summary>1 while QuickChat is typing. Two at once would interleave keystrokes.</summary>
+    private int _quickChatInFlight;
 
-    /// <summary>Contact-bounce debounce, per key. Must stay below any human re-cast interval:
-    /// a 250ms filter keyed on the card POSITION, then a 35ms one, both ate deliberate casts —
-    /// spam-tapping reaches 25-30 presses a second. Auto-repeat is already handled separately,
-    /// so this only has to outlast switch bounce, which is a few milliseconds.</summary>
-    private const int DebounceMs = 10;
-
-    /// <summary>How long a held mouse button may delay a cast before it fires regardless.</summary>
-    private const int MaxDeferMs = 48;
-    private readonly Dictionary<int, long> _lastPressTicks = new();
-
-    public KeyboardHookService(RemapEngine engine, Func<IntPtr>? gameWindow = null,
-                               Func<bool>? postClicksToGameWindow = null,
-                               Func<(int Settle, int Hold)>? postedTiming = null)
+    public KeyboardHookService(RemapEngine engine)
     {
         _engine = engine;
-        _gameWindow = gameWindow ?? (() => IntPtr.Zero);
-        _postClicksToGameWindow = postClicksToGameWindow ?? (() => false);
-        _postedTiming = postedTiming ?? (() => (24, 30));
         _callback = HookCallback;
-
-        var clickThread = new Thread(() =>
-        {
-            foreach (var (x, y, right) in _clickQueue.GetConsumingEnumerable())
-                Click(x, y, right);
-        })
-        {
-            IsBackground = true,
-            Name = "LexusWarKey clicks",
-        };
-        clickThread.Start();
     }
 
     public bool IsInstalled => _hook != IntPtr.Zero;
@@ -85,7 +48,20 @@ public sealed class KeyboardHookService : IDisposable
 
     /// <summary>While true every key is swallowed and forwarded to <see cref="ConfigKeyPressed"/>,
     /// so the user can rebind from inside the game without alt-tabbing.</summary>
-    public bool ConfigMode { get; set; }
+    private bool _configMode;
+
+    public bool ConfigMode
+    {
+        get => _configMode;
+        set
+        {
+            if (_configMode == value)
+                return;
+            if (value)
+                ReleaseHeldRemaps();
+            _configMode = value;
+        }
+    }
 
     public event Action<int>? ConfigKeyPressed;
 
@@ -122,13 +98,12 @@ public sealed class KeyboardHookService : IDisposable
     {
         if (!IsInstalled)
             return;
+        ReleaseHeldRemaps();
         NativeMethods.UnhookWindowsHookEx(_hook);
         _hook = IntPtr.Zero;
     }
 
-    /// <summary>Carries out a decision. Returns true when the original input was consumed.
-    /// Shared by the keyboard and mouse hooks so a wheel notch behaves exactly like a key —
-    /// there is one set of rules for auto-repeat, debouncing and macro serialisation, not two.</summary>
+    /// <summary>Carries out a decision. Returns true when the original input was consumed.</summary>
     private bool Dispatch(RemapDecision decision, int vk, bool isDown)
     {
         var isUp = !isDown;
@@ -136,50 +111,36 @@ public sealed class KeyboardHookService : IDisposable
         switch (decision.Action)
         {
             case RemapAction.SendKey:
-                InputSender.SendKey(decision.SendVk, isDown);
+                var target = decision.SendVk;
+                if (isDown)
+                {
+                    if (_heldRemaps.TryGetValue(vk, out var existingTarget))
+                        target = existingTarget;
+                    else
+                        _heldRemaps[vk] = target;
+                }
+                else if (_heldRemaps.Remove(vk, out var releasedTarget))
+                {
+                    target = releasedTarget;
+                }
+
+                InputSender.SendKey(target, isDown);
                 return true; // swallow the original
 
             case RemapAction.SendChat when isDown:
-                // Auto-repeat must not restart the macro, and two macros must never
+                // Auto-repeat must not restart QuickChat, and two messages must never
                 // interleave — the second would type into the middle of the first's line.
                 if (!_actionHeld.Add(vk))
                     return true;
-                if (Interlocked.CompareExchange(ref _macroInFlight, 1, 0) != 0)
+                if (Interlocked.CompareExchange(ref _quickChatInFlight, 1, 0) != 0)
                     return true;
                 // Armed here, not in the worker: the pool can lag, and a second key in
                 // that gap used to slip past the SuspendedForTyping check entirely.
                 _engine.SuspendedForTyping = true;
                 var lines = decision.ChatLines ?? Array.Empty<string>();
-                var allies = decision.AlliesOnly;
                 // Never type inside the hook: SendInput here would deadlock the input queue.
-                ThreadPool.QueueUserWorkItem(_ => SendChatLines(lines, allies));
+                ThreadPool.QueueUserWorkItem(_ => SendChatLines(lines));
                 return true;
-
-            case RemapAction.ClickSlot when decision.ClickAt is { } point:
-                if (!_actionHeld.Add(vk))
-                    return true; // OS auto-repeat of a held key — one press, one click
-
-                // Debounce only: keyed on the KEY, not the position, and short enough to
-                // absorb a contact bounce and nothing else. Earlier filters keyed on the card
-                // POSITION, and at 250ms then 35ms both ate deliberate second casts.
-                var now = Environment.TickCount64;
-                if (_lastPressTicks.TryGetValue(vk, out var previous)
-                    && now - previous < DebounceMs)
-                {
-                    DiagnosticLog.Write($"click SUPPRESSED vk={vk} ({now - previous}ms since last)");
-                    return true;
-                }
-                _lastPressTicks[vk] = now;
-
-                // Clicking involves sleeps; doing it inside the hook would freeze input.
-                if (!_clickQueue.TryAdd((point.X, point.Y, decision.RightClick)))
-                    DiagnosticLog.Write($"click DROPPED vk={vk}: queue full ({_clickQueue.Count})");
-                return true;
-
-            case RemapAction.ClickSlot:
-                if (isUp)
-                    _actionHeld.Remove(vk);
-                return true; // key-up (or an uncalibrated card): swallow, do nothing
 
             case RemapAction.SendChat:
                 if (isUp)
@@ -187,40 +148,21 @@ public sealed class KeyboardHookService : IDisposable
                 return true; // swallow the matching key-up too
 
             default:
+                // A key whose binding changed (or was cleared) while it was physically held:
+                // the game still has the OLD target down, so release that one rather than
+                // leaving a key stuck down for the rest of the match.
+                if (isUp && _heldRemaps.Remove(vk, out var stillHeldTarget))
+                {
+                    InputSender.SendKey(stillHeldTarget, false);
+                    return true;
+                }
+
                 // Only the key-UP releases the latch. Clearing it on a passed-through
-                // key-DOWN re-armed a still-held macro key the moment the macro finished,
-                // and a held F5 then re-sent the whole block once a second.
+                // key-DOWN re-armed a still-held QuickChat key the moment typing finished,
+                // and a held F5 then re-sent the whole line once a second.
                 if (isUp)
                     _actionHeld.Remove(vk);
                 return false;
-        }
-    }
-
-    /// <summary>Runs a bound mouse control through exactly the same path as a key. Called from
-    /// the mouse hook thread, so it does no work of its own beyond queueing.</summary>
-    public void HandleMouseControl(int vk, bool isDown)
-    {
-        try
-        {
-            if (ConfigMode)
-            {
-                if (isDown)
-                    ConfigKeyPressed?.Invoke(vk);
-                return;
-            }
-
-            var ctrl = InputSender.IsKeyHeld(VirtualKeys.Control);
-            var alt = InputSender.IsKeyHeld(VirtualKeys.Alt);
-            Dispatch(_engine.Decide(vk, isDown, ctrl, alt), vk, isDown);
-
-            // A wheel notch has no release of its own, so close the press immediately or the
-            // auto-repeat latch would block every notch after the first.
-            if (isDown && vk is VirtualKeys.WheelUp or VirtualKeys.WheelDown)
-                _actionHeld.Remove(vk);
-        }
-        catch
-        {
-            // never let a mouse binding take the app down
         }
     }
 
@@ -252,7 +194,7 @@ public sealed class KeyboardHookService : IDisposable
             var alt = InputSender.IsKeyHeld(VirtualKeys.Alt);
 
             // There is deliberately NO master-toggle hotkey any more. Ctrl+F5 collided with
-            // real play (F5 carries the user's own macros), it got pressed by accident, and a
+            // real play, it got pressed by accident, and a
             // latch bug made toggling back on unreliable — so the one way to disable the app
             // is the checkbox in the window, where the state is visible.
             //
@@ -272,21 +214,27 @@ public sealed class KeyboardHookService : IDisposable
             // In-game config: the overlay owns the keyboard until the user closes it.
             if (ConfigMode)
             {
+                if (isUp && _heldRemaps.Remove(vk, out var target))
+                {
+                    InputSender.SendKey(target, false);
+                    return 1;
+                }
+
                 if (isDown && !IsModifier(vk))
                     ConfigKeyPressed?.Invoke(vk);
                 return IsModifier(vk) ? NativeMethods.CallNextHookEx(_hook, nCode, wParam, lParam) : 1;
             }
 
-            // While the app is typing a macro, the chat line belongs to it: a player's stray
-            // Enter or Escape mid-macro would send a half-typed line or close the prompt, and
-            // every later line of the macro would land in the game as raw orders. The key that
-            // STARTED the macro gets the same treatment — a six-line macro outlasts the OS
-            // auto-repeat delay, and those repeats would otherwise type into the open prompt.
+            // While the app is typing QuickChat, the chat line belongs to it: a player's stray
+            // Enter or Escape during typing would send a half-typed line or close the prompt, and
+            // the rest of the message would land in the game as raw orders. The key that
+            // started QuickChat gets the same treatment because auto-repeat can outlast
+            // the SendInput typing delay.
             if (_engine.SuspendedForTyping
                 && (vk is VirtualKeys.Enter or VirtualKeys.Escape || _actionHeld.Contains(vk)))
             {
                 // The release still has to clear the latch, or the key would need a second
-                // press after the macro before it worked again.
+                // press after QuickChat before it worked again.
                 if (isUp)
                     _actionHeld.Remove(vk);
                 return 1;
@@ -294,7 +242,7 @@ public sealed class KeyboardHookService : IDisposable
 
             // Watch the player's own Enter/Escape so we know when Warcraft's chat line is
             // open and can get out of the way. Injected keys were filtered out above, so
-            // the app's own macro typing never reaches this.
+            // the app's own QuickChat typing never reaches this.
             _engine.ObserveKey(vk, isDown);
 
             var decision = _engine.Decide(vk, isDown, ctrl, alt);
@@ -309,122 +257,45 @@ public sealed class KeyboardHookService : IDisposable
         }
     }
 
-    /// <summary>Settle and hold times for a posted click, read from the profile so they can be
-    /// tuned by editing the file rather than by cutting a release for each guess.</summary>
-    private readonly Func<(int Settle, int Hold)> _postedTiming;
-
-    /// <summary>Casts a slot by moving the real cursor there and back, unless the profile asks
-    /// for posted clicks.
-    ///
-    /// Posting is the better-looking mechanism and the messages demonstrably arrive — the log
-    /// fills with successful posts and never a refusal — but no ability has ever been seen to
-    /// come out of one, on this machine or any other, across three releases. The cursor path is
-    /// the one with real matches behind it. So the cursor is what ships and posting is a switch.
-    ///
-    /// Which path ran is now named in the log line rather than left to be inferred. It was
-    /// inferred wrongly once already: the two mechanisms were told apart by how many
-    /// milliseconds each click took, one release was credited with another's field record, and
-    /// the fix that followed was aimed at code the player had never run. Both times this
-    /// decision was made before, it was made from a summary of an experiment rather than from
-    /// what the experiment recorded.</summary>
-    private void Click(int x, int y, bool rightClick)
-    {
-        if (!_postClicksToGameWindow())
-        {
-            SafeClick(x, y, rightClick);
-            return;
-        }
-
-        try
-        {
-            var hwnd = _gameWindow();
-            var why = InputSender.WhyCannotPost(hwnd, x, y, out var clientX, out var clientY);
-            if (why is null)
-            {
-                var (settle, hold) = _postedTiming();
-                var watch = System.Diagnostics.Stopwatch.StartNew();
-                var posted = InputSender.PostClick(hwnd, clientX, clientY, rightClick, settle, hold);
-                watch.Stop();
-                DiagnosticLog.Write(
-                    $"click ({x},{y})->client({clientX},{clientY}) right={rightClick} "
-                    + $"settle={settle} hold={hold} {watch.ElapsedMilliseconds}ms posted"
-                    + (posted ? "" : " — PostMessage REFUSED, falling back to the cursor"));
-                if (posted)
-                    return;
-            }
-            else
-            {
-                DiagnosticLog.Write($"click ({x},{y}) cannot be posted: {why} — using the cursor");
-            }
-        }
-        catch { /* fall through to the cursor rather than dropping the cast */ }
-
-        SafeClick(x, y, rightClick);
-    }
-
-    /// <summary>Fallback: moves the real cursor, clicks, and puts it back. Costs about 35ms and
-    /// briefly takes the pointer away from the player, which is why it is no longer the default.</summary>
-    private static void SafeClick(int x, int y, bool rightClick)
-    {
-        try
-        {
-            // A mid-drag injected button-up can corrupt the player's selection, so a held
-            // button buys one short grace period — and then the cast goes anyway. Waiting
-            // longer was worse than the problem it solved: every click runs through one
-            // thread, so a held button froze all queued skills behind it. In DotA the left
-            // button is in near-constant use, which made that the common case, not the rare one.
-            var waited = 0;
-            while (InputSender.IsKeyHeld(VirtualKeys.LButton) && waited < MaxDeferMs)
-            {
-                Thread.Sleep(8);
-                waited += 8;
-            }
-            if (waited > 0)
-                DiagnosticLog.Write($"click deferred {waited}ms (mouse button held)");
-
-            var watch = System.Diagnostics.Stopwatch.StartNew();
-            var ok = InputSender.ClickAt(x, y, rightClick);
-            watch.Stop();
-            DiagnosticLog.Write($"click ({x},{y}) right={rightClick} {watch.ElapsedMilliseconds}ms cursor"
-                                + (ok ? "" : " — SendInput REFUSED by Windows"));
-        }
-        catch { /* a failed click must never take the app down */ }
-    }
-
     private static bool IsModifier(int vk) =>
         vk is VirtualKeys.Shift or VirtualKeys.Control or VirtualKeys.Alt
            or VirtualKeys.LShift or VirtualKeys.RShift
            or VirtualKeys.LControl or VirtualKeys.RControl
            or VirtualKeys.LAlt or VirtualKeys.RAlt;
 
-    private void SendChatLines(IReadOnlyList<string> lines, bool alliesOnly)
+    private void ReleaseHeldRemaps()
+    {
+        if (_heldRemaps.Count == 0)
+            return;
+
+        var targets = _heldRemaps.Values.Distinct().ToList();
+        _heldRemaps.Clear();
+        foreach (var target in targets)
+            InputSender.SendKey(target, false);
+    }
+
+    private void SendChatLines(IReadOnlyList<string> lines)
     {
         // SuspendedForTyping was already set in the hook, before this was queued — setting it
-        // here left a gap where a second macro could slip in while the pool spun up a thread.
+        // here left a gap where a second message could slip in while the pool spun up a thread.
         //
-        // Every key is passed through untouched for the whole of this, and a six-line macro takes
-        // well over a second. That is a real window in which a skill key does nothing, so both
-        // ends are on the record rather than left to be guessed at from a gap in the clicks.
+        // Every key is passed through untouched for the whole of this. That is a real window in
+        // which a skill key does nothing, so both ends are on the record rather than left to be
+        // guessed at from a gap in the clicks.
         var watch = System.Diagnostics.Stopwatch.StartNew();
-        DiagnosticLog.Write($"macro typing {lines.Count} line(s) — remapping suspended");
+        DiagnosticLog.Write($"QuickChat typing {lines.Count} line(s) - remapping suspended");
         try
         {
             foreach (var line in lines)
             {
-                // Warcraft III addresses the chat prompt by modifier, per the manual's hotkey
-                // card: Ctrl+Enter opens it to "Allies" only, Shift+Enter to "All" players.
-                // Plain Enter is deliberately not used for either — it opens whatever channel
-                // the player last selected in the F12 chat menu, so it is not a fixed target
-                // and a macro meant for the team could land in front of the enemy.
-                if (!InputSender.TapWithModifier(
-                        alliesOnly ? VirtualKeys.LControl : VirtualKeys.LShift,
-                        VirtualKeys.Enter))
+                // QuickChat always uses the fixed all-chat path.
+                if (!InputSender.TapWithModifier(VirtualKeys.LShift, VirtualKeys.Enter))
                     return; // Windows refused the injection (UIPI?) — stop, don't type into nothing
 
                 // The prompt must exist before the text arrives, and the game opens it on its
-                // own schedule — one frame at best, several under load. Typing early does not
+                // own schedule: one frame at best, several under load. Typing early does not
                 // queue: the keystrokes land in the game world as orders. These delays are
-                // deliberately generous; a macro is allowed to take half a second, it is not
+                // deliberately generous; QuickChat is allowed to take half a second, it is not
                 // allowed to feed "-clear" to the hero as movement.
                 Thread.Sleep(80);
                 if (!InputSender.TypeText(line))
@@ -437,19 +308,18 @@ public sealed class KeyboardHookService : IDisposable
         }
         catch
         {
-            // a failed macro must never take the app down
+            // a failed QuickChat send must never take the app down
         }
         finally
         {
             _engine.SuspendedForTyping = false;
-            Interlocked.Exchange(ref _macroInFlight, 0);
-            DiagnosticLog.Write($"macro done after {watch.ElapsedMilliseconds}ms — remapping live again");
+            Interlocked.Exchange(ref _quickChatInFlight, 0);
+            DiagnosticLog.Write($"QuickChat done after {watch.ElapsedMilliseconds}ms - remapping live again");
         }
     }
 
     public void Dispose()
     {
         Uninstall();
-        _clickQueue.CompleteAdding(); // lets the click thread finish its loop and exit
     }
 }

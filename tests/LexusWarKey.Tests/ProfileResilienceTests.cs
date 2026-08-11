@@ -5,11 +5,6 @@ using Xunit;
 
 namespace LexusWarKey.Tests;
 
-/// <summary>The profile is the only thing the user actually owns in this app — every binding,
-/// macro and the command-card calibration. These tests cover the ways it was previously possible
-/// to lose all of it, or to be locked out of the app entirely, without any warning.
-///
-/// Everything runs against a temporary directory; the real %LocalAppData% is never touched.</summary>
 public class ProfileResilienceTests : IDisposable
 {
     private readonly string _root = Path.Combine(
@@ -17,7 +12,7 @@ public class ProfileResilienceTests : IDisposable
 
     public void Dispose()
     {
-        try { Directory.Delete(_root, recursive: true); } catch { /* best effort */ }
+        try { Directory.Delete(_root, recursive: true); } catch { }
     }
 
     private ProfileStore Store() => new(_root);
@@ -29,22 +24,18 @@ public class ProfileResilienceTests : IDisposable
     }
 
     [Fact]
-    public void A_null_member_in_the_file_does_not_crash_the_app_on_every_launch()
+    public void Null_members_in_the_file_do_not_crash_startup()
     {
-        // Hand-edited (or half-migrated) files really do look like this, and this exact shape
-        // used to throw NullReferenceException out of Load and take the whole app down at start.
-        WriteProfile("""{ "inventory": null, "skills": null, "chatMacros": null, "commandCard": null }""");
+        WriteProfile("""{ "inventory": null, "skills": null, "chatMacros": null }""");
 
         var profile = Store().Load();
 
-        Assert.Equal(WarKeyProfile.InventorySlots, profile.Inventory.Count);
         Assert.Equal(WarKeyProfile.SkillSlots, profile.Skills.Count);
-        Assert.NotNull(profile.ChatMacros);
-        Assert.NotNull(profile.CommandCard);
+        Assert.Equal(WarKeyProfile.QuickChatSlots, profile.ChatMacros.Count);
     }
 
     [Fact]
-    public void A_macro_with_null_messages_is_healed_rather_than_throwing()
+    public void A_macro_with_null_messages_is_healed()
     {
         WriteProfile("""{ "chatMacros": [ { "hotkeyVk": 113, "messages": null, "enabled": true } ] }""");
 
@@ -55,7 +46,7 @@ public class ProfileResilienceTests : IDisposable
     }
 
     [Fact]
-    public void Genuinely_corrupt_content_is_kept_aside_and_reported_not_silently_discarded()
+    public void Corrupt_content_is_quarantined_and_reported()
     {
         WriteProfile("this is not json at all {{{");
 
@@ -75,8 +66,6 @@ public class ProfileResilienceTests : IDisposable
         var original = File.ReadAllText(path);
 
         var store = Store();
-        // An antivirus or backup agent holding the file open is transient and common. Treating
-        // it as corruption is how a perfectly good profile used to get overwritten with defaults.
         using (File.Open(path, FileMode.Open, FileAccess.Read, FileShare.None))
         {
             store.Load();
@@ -85,7 +74,10 @@ public class ProfileResilienceTests : IDisposable
         Assert.True(store.ReadOnly);
         Assert.NotNull(store.LoadWarning);
 
-        store.Save(WarKeyProfile.CreateDefault()); // must be a no-op, not an overwrite
+        var replacement = WarKeyProfile.CreateDefault();
+        replacement.Skills[0] = new KeyMap { FromVk = 'Q', ToVk = 'T', Enabled = true };
+        store.Save(replacement);
+
         Assert.Equal(original, File.ReadAllText(path));
         Assert.Empty(Directory.GetFiles(_root, "profile.json.corrupt-*"));
     }
@@ -94,21 +86,18 @@ public class ProfileResilienceTests : IDisposable
     public void A_saved_profile_round_trips_with_its_bindings_intact()
     {
         var profile = WarKeyProfile.CreateDefault();
-        profile.Skills[9].FromVk = 'R';
-        profile.Skills[9].Enabled = true;
-        profile.ChatMacros[0].AlliesOnly = true;
-        profile.CommandCard = new CommandCard
-        {
-            TopLeftX = 900, TopLeftY = 760, BottomRightX = 1050, BottomRightY = 820,
-        };
+        profile.Skills[5].FromVk = 'R';
+        profile.Skills[5].ToVk = 'D';
+        profile.Skills[5].Enabled = true;
+        profile.ChatMacros[0].Message = "-clear";
 
         var store = Store();
         store.Save(profile);
         var loaded = store.Load();
 
-        Assert.Equal('R', loaded.Skills[9].FromVk);
-        Assert.True(loaded.ChatMacros[0].AlliesOnly);
-        Assert.True(loaded.CommandCard.IsCalibrated);
+        Assert.Equal('R', loaded.Skills[5].FromVk);
+        Assert.Equal('D', loaded.Skills[5].ToVk);
+        Assert.Equal("-clear", loaded.ChatMacros[0].Message);
         Assert.Null(store.LoadWarning);
         Assert.False(store.ReadOnly);
     }
@@ -117,31 +106,23 @@ public class ProfileResilienceTests : IDisposable
     public void Saving_leaves_no_temp_file_behind()
     {
         var store = Store();
-        store.Save(WarKeyProfile.CreateDefault());
+        var profile = WarKeyProfile.CreateDefault();
+        profile.Skills[0] = new KeyMap { FromVk = 'Q', ToVk = 'T', Enabled = true };
+
+        store.Save(profile);
 
         Assert.Empty(Directory.GetFiles(_root, "*.tmp"));
     }
 
     [Fact]
-    public void The_file_a_broken_release_left_behind_loads_onto_the_cursor_with_its_bindings_intact()
+    public void Old_unknown_members_are_skipped_not_treated_as_corruption()
     {
-        // Copied from the profile of a player whose skills had stopped casting entirely, keys and
-        // all. v1.9.3-v1.9.5 wrote "usePostedClicks": true into every file that was ever saved,
-        // and a stored value beats a property initialiser — so the fix had to make the old key
-        // unrecognised rather than re-default it.
-        //
-        // The other half matters just as much: an unrecognised member must be SKIPPED, not
-        // rejected. If the reader ever tightens to Disallow, this file becomes "corrupt" and
-        // every player is silently reset to empty bindings. This goes through the real
-        // ProfileStore for exactly that reason.
         WriteProfile("""
                      {
                        "inventory": [ { "fromVk": 32, "toVk": 103, "enabled": true } ],
-                       "skills": [],
-                       "usePostedClicks": true,
-                       "postedSettleMs": 24,
-                       "postedHoldMs": 30,
-                       "moveCursorForClicks": false,
+                       "skills": [ { "fromVk": 81, "toVk": 84, "enabled": true } ],
+                       "activationToken": "old",
+                       "autoInstallUpdates": true,
                        "enabled": true
                      }
                      """);
@@ -149,10 +130,9 @@ public class ProfileResilienceTests : IDisposable
         var store = Store();
         var profile = store.Load();
 
-        Assert.False(profile.PostClicksToGameWindow);   // back on the path with matches behind it
-        Assert.Null(store.LoadWarning);                 // not read as corruption
-        Assert.Equal(32, profile.Inventory[0].FromVk);  // and nobody lost their bindings
-        Assert.True(profile.Inventory[0].Enabled);
+        Assert.Null(store.LoadWarning);
+        Assert.Equal('Q', profile.Skills[0].FromVk);
+        Assert.Equal('T', profile.Skills[0].ToVk);
     }
 
     [Fact]
@@ -163,6 +143,7 @@ public class ProfileResilienceTests : IDisposable
 
         Assert.Null(store.LoadWarning);
         Assert.False(store.ReadOnly);
-        Assert.Equal(WarKeyProfile.InventorySlots, profile.Inventory.Count);
+        Assert.Equal(WarKeyProfile.SkillSlots, profile.Skills.Count);
+        Assert.Equal(WarKeyProfile.QuickChatSlots, profile.ChatMacros.Count);
     }
 }
