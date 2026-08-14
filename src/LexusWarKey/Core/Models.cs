@@ -92,8 +92,19 @@ public sealed class WarKeyProfile
 
         // Older profiles stored a 4x3 command card. The top row was
         // Move/Stop/Hold/Attack; keep only the lower two rows users actually bind.
+        //
+        // Their target keys do NOT survive. In those builds ToVk held a letter from the
+        // generated CustomKeys.txt scheme, which assumed that file was installed in the game
+        // folder; nothing generates or installs it any more, so those letters now point at
+        // whatever abilities happen to use them. Carrying them over would leave a grid that
+        // looks fully configured and casts the wrong ability on the first match after the
+        // update. Clearing them costs one deliberate re-bind and cannot cast anything wrong.
         if (Skills.Count == 12)
+        {
             Skills = Skills.Skip(4).ToList();
+            foreach (var map in Skills)
+                map.ToVk = 0;
+        }
 
         while (Skills.Count < SkillSlots)
             Skills.Add(new KeyMap());

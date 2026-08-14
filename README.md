@@ -34,7 +34,9 @@ Settings are saved to:
 - Key-down and key-up are both remapped, so Warcraft receives a complete keystroke.
 - The hook ignores keys injected by Lexus WarKey, preventing remap loops.
 - Held remap keys remember the exact injected target until key-up, preventing stuck keys if mappings change mid-press.
-- Enter/Esc are never remapped because they control Warcraft chat.
+- Enter/Esc are never remapped because they control Warcraft chat, and neither can be
+  assigned as a trigger key or a target letter — a cell bound to Enter would look configured
+  and never cast.
 - While Warcraft chat is open, all remaps and QuickChat actions pass through.
 - Closing the main window hides it to the tray so the remapper keeps running.
 

@@ -146,6 +146,12 @@ public sealed class ProfileStore
             TryCopy(FilePath, BackupPath);
     }
 
+    /// <summary>True when losing this profile would actually cost the user something.
+    ///
+    /// A freshly reset profile must answer false. Whatever wipes the main file is followed by
+    /// the app saving a near-default state, and if that save refreshed the backup it would eat
+    /// the one copy that can still bring the user's bindings back. A default profile has eight
+    /// empty skill cells and two QuickChat slots with no message, so neither clause fires.</summary>
     private static bool IsWorthBackingUp(WarKeyProfile profile) =>
         profile.Skills.Any(m => m.ClaimsKey)
         || profile.ChatMacros.Any(m => m.IsUsable);

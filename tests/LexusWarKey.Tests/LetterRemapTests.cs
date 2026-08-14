@@ -79,6 +79,25 @@ public class LetterRemapTests
     }
 
     [Fact]
+    public void Enter_cannot_be_bound_as_a_trigger_key()
+    {
+        // Warcraft's chat line owns Enter and RemapEngine passes it through before the skill
+        // lookup, so a cell bound to Enter would read "Enter->T", look configured, never be
+        // reported as dead, and never cast. Refuse it at the source instead.
+        var profile = WarKeyProfile.CreateDefault();
+        var session = new OverlayConfigSession(profile, () => { });
+
+        session.SelectSlot(4);
+        session.HandleKey(VirtualKeys.Enter);
+
+        Assert.Equal(OverlayStep.WaitingForKey, session.Step);   // still waiting for a real key
+        Assert.Equal(0, profile.Skills[4].FromVk);
+
+        session.HandleKey('C');
+        Assert.Equal('C', profile.Skills[4].FromVk);
+    }
+
+    [Fact]
     public void Enter_at_the_letter_step_keeps_the_existing_game_letter()
     {
         var profile = WarKeyProfile.CreateDefault();

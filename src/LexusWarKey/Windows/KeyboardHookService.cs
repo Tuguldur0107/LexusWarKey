@@ -58,7 +58,13 @@ public sealed class KeyboardHookService : IDisposable
             if (_configMode == value)
                 return;
             if (value)
+            {
                 ReleaseHeldRemaps();
+                // Config mode returns before Dispatch ever sees a key-up, so an auto-repeat
+                // latch taken just before the overlay opened would survive it and swallow that
+                // key's next press — one QuickChat message lost exactly when it was wanted.
+                _actionHeld.Clear();
+            }
             _configMode = value;
         }
     }

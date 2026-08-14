@@ -102,6 +102,14 @@ public sealed class OverlayConfigSession
             return true;
         }
 
+        // Enter drives Warcraft's chat line, so RemapEngine.Decide passes it through before it
+        // ever reaches the skill lookup. Accepting it here would store a cell that reads
+        // "Enter->T", looks configured, is not reported as dead, and never casts anything.
+        // Keep waiting for a key that can actually work. (Escape is handled at the top as
+        // "cancel", so it can never get this far.)
+        if (vk == VirtualKeys.Enter)
+            return true;
+
         slot.FromVk = vk;
         slot.Enabled = true;
         Step = OverlayStep.WaitingForLetter;

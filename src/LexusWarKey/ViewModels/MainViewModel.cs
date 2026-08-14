@@ -251,6 +251,12 @@ public sealed partial class MainViewModel : ObservableObject
             return true;
         }
 
+        // Enter belongs to Warcraft's chat line and RemapEngine never touches it. As a trigger
+        // it would store a cell that looks bound and never fires; as a target it would type
+        // into the game's chat instead of casting. Swallow it and keep waiting for a real key.
+        if (vk == VirtualKeys.Enter)
+            return true;
+
         _capture.Assign(vk == VirtualKeys.Back ? 0 : vk);
         return true;
     }
@@ -296,7 +302,13 @@ public sealed partial class MainViewModel : ObservableObject
         _hook.ConfigMode = false;
         _overlaySession.Reset();
         _overlay?.Hide();
-        _engine.ResetChatState();
+
+        // Deliberately NOT resetting the chat tracker. The overlay swallows every key while it
+        // is open, so it cannot have changed whether Warcraft's chat line is open — but the
+        // player may well have opened chat, then pressed Ctrl+F6 to fix a binding mid-fight.
+        // Declaring "chat closed" there inverts the tracker: the player goes back to typing
+        // into a prompt that is still open, and every letter both mangles the message and
+        // casts an ability. Leaving the tracker alone keeps whatever was true before.
     }
 
     private void OnOverlayKey(int vk)

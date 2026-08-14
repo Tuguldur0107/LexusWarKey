@@ -12,17 +12,36 @@ public class MigrationTests
         while (profile.Skills.Count < 12)
             profile.Skills.Add(new KeyMap());
         profile.Skills[4].FromVk = 'Q';
-        profile.Skills[4].ToVk = 'A';
         profile.Skills[4].Enabled = true;
         profile.Skills[11].FromVk = 'V';
-        profile.Skills[11].ToVk = 'D';
         profile.Skills[11].Enabled = true;
 
         profile.NormaliseSlots();
 
+        // Truncating from the end would have thrown away every binding the user had.
         Assert.Equal(WarKeyProfile.SkillSlots, profile.Skills.Count);
-        Assert.Equal(('Q', 'A'), ((char)profile.Skills[0].FromVk, (char)profile.Skills[0].ToVk));
-        Assert.Equal(('V', 'D'), ((char)profile.Skills[7].FromVk, (char)profile.Skills[7].ToVk));
+        Assert.Equal('Q', profile.Skills[0].FromVk);
+        Assert.Equal('V', profile.Skills[7].FromVk);
+    }
+
+    [Fact]
+    public void The_12_slot_migration_drops_the_old_CustomKeys_letters()
+    {
+        // Those builds seeded ToVk from the generated CustomKeys.txt scheme, which assumed the
+        // file was installed in the game folder. Nothing installs it now, so carrying the
+        // letters over would leave a grid that looks configured and casts the wrong ability.
+        var profile = WarKeyProfile.CreateDefault();
+        while (profile.Skills.Count < 12)
+            profile.Skills.Add(new KeyMap());
+        profile.Skills[5].FromVk = 'A';
+        profile.Skills[5].ToVk = 'Q';      // scheme letter, not this match's ability letter
+        profile.Skills[5].Enabled = true;
+
+        profile.NormaliseSlots();
+
+        Assert.Equal('A', profile.Skills[1].FromVk);   // the player's own key is theirs to keep
+        Assert.Equal(0, profile.Skills[1].ToVk);       // the stale letter is not
+        Assert.False(profile.Skills[1].IsUsable);      // so it cannot cast anything wrong
     }
 
     [Fact]
