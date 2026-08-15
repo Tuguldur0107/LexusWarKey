@@ -50,9 +50,12 @@ public class FieldProfileRegressionTests : IDisposable
         Assert.Equal(WarKeyProfile.SkillSlots, profile.Skills.Count);
         Assert.Equal(new[] { 'E', 'W', 'T', 'R', 'H', 'Q', 'C', 'V' },
             profile.Skills.Select(m => (char)m.FromVk).ToArray());
-        Assert.Equal(2, profile.ChatMacros.Count);
+        // QuickChat is an open list now, so all three of the old macros survive (each trimmed to its
+        // first message).
+        Assert.Equal(3, profile.ChatMacros.Count);
         Assert.Equal("-clear", profile.ChatMacros[0].Message);
         Assert.Equal("-sds6fnboulso", profile.ChatMacros[1].Message);
+        Assert.Equal("/fps", profile.ChatMacros[2].Message);
     }
 
     [Fact]

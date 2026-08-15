@@ -1,56 +1,83 @@
 namespace LexusWarKey.Core;
 
+/// <summary>One skill shown in the in-game Ctrl+F6 list: its id, name and default letter.</summary>
+public sealed record OverlaySkill(string Id, string Name, char Default);
+
 public enum OverlayStep
 {
-    ChoosingSlot,
-    WaitingForKey,
-    WaitingForLetter,
+    ChoosingTarget,
+    WaitingForLetter,   // a skill is selected: press the letter to give it
+    WaitingForKey,      // an inventory slot is selected: press your key
 }
 
-/// <summary>The Ctrl+F6 in-game flow. It edits only the skill grid:
-/// choose a cell, press the key you want to use, press that ability's Warcraft letter.</summary>
+/// <summary>The Ctrl+F6 in-game flow, over the LIVE detected skills AND the inventory slots. Because
+/// the overlay never takes focus, Warcraft stays focused, so the background writer keeps running and
+/// each change applies at once - the player configures without alt-tabbing.
+///
+/// The list is skills first (indices 0..N-1), then the six inventory slots (N..N+5). Press a number
+/// to pick a row; for a skill, press the letter you want it on; for an inventory slot, press your own
+/// key (its game key is the fixed numpad hotkey).</summary>
 public sealed class OverlayConfigSession
 {
     private readonly WarKeyProfile _profile;
+    private readonly Func<IReadOnlyList<OverlaySkill>> _detected;
     private readonly Action _onChanged;
 
-    public OverlayConfigSession(WarKeyProfile profile, Action onChanged)
+    public OverlayConfigSession(WarKeyProfile profile, Func<IReadOnlyList<OverlaySkill>> detected, Action onChanged)
     {
         _profile = profile;
+        _detected = detected;
         _onChanged = onChanged;
     }
 
-    public OverlayStep Step { get; private set; } = OverlayStep.ChoosingSlot;
+    public OverlayStep Step { get; private set; } = OverlayStep.ChoosingTarget;
     public int SelectedIndex { get; private set; } = -1;
+
+    public IReadOnlyList<OverlaySkill> Skills => _detected();
+    public int SkillCount => Skills.Count;
+    public int InventoryCount => _profile.Inventory.Count;
+    public int TotalCount => SkillCount + InventoryCount;
+
+    public bool IsInventory(int index) => index >= SkillCount && index < TotalCount;
+    private int InventorySlot(int index) => index - SkillCount;
 
     public string Prompt => Step switch
     {
-        OverlayStep.ChoosingSlot => "Select skill 1-8",
-        OverlayStep.WaitingForKey => $"Skill {SelectedIndex + 1}: press your key (Backspace clears, Esc cancels)",
-        _ => $"Skill {SelectedIndex + 1}: press Warcraft letter"
-             + CurrentLetterSuffix(),
+        OverlayStep.ChoosingTarget => TotalCount == 0
+            ? "No skills detected - select your hero"
+            : $"Press a number 1-{TotalCount}, then a key",
+        OverlayStep.WaitingForLetter => $"{TargetName}: press the letter (Backspace clears, Esc cancels)",
+        _ => $"{TargetName}: press your key (Backspace clears, Esc cancels)",
     };
 
-    private string CurrentLetterSuffix()
+    private string TargetName
     {
-        var current = _profile.Skills[SelectedIndex].ToVk;
-        return current == 0 ? "" : $" (current {VirtualKeys.NameOf(current)}, Enter keeps it)";
+        get
+        {
+            if (SelectedIndex < 0)
+                return "?";
+            if (IsInventory(SelectedIndex))
+                return $"Item {InventorySlot(SelectedIndex) + 1}";
+            return SelectedIndex < SkillCount ? Skills[SelectedIndex].Name : "?";
+        }
     }
 
-    public void SelectSlot(int index)
+    public string AssignedOf(string id) => _profile.SkillLetters.GetValueOrDefault(id, "");
+
+    public void SelectTarget(int index)
     {
-        if (index < 0 || index >= _profile.Skills.Count)
+        if (index < 0 || index >= TotalCount)
             return;
         SelectedIndex = index;
-        Step = OverlayStep.WaitingForKey;
+        Step = IsInventory(index) ? OverlayStep.WaitingForKey : OverlayStep.WaitingForLetter;
     }
 
-    /// <summary>Handles one key press. Returns false when the overlay should close.</summary>
+    /// <summary>Handles one key. Returns false when the overlay should close.</summary>
     public bool HandleKey(int vk)
     {
         if (vk == VirtualKeys.Escape)
         {
-            if (Step != OverlayStep.ChoosingSlot)
+            if (Step != OverlayStep.ChoosingTarget)
             {
                 Reset();
                 return true;
@@ -58,81 +85,75 @@ public sealed class OverlayConfigSession
             return false;
         }
 
-        if (Step == OverlayStep.ChoosingSlot)
+        if (Step == OverlayStep.ChoosingTarget)
         {
             var index = SkillIndexFor(vk);
-            if (index >= 0)
-                SelectSlot(index);
+            if (index >= 0 && index < TotalCount)
+                SelectTarget(index);
             return true;
         }
 
-        var slot = _profile.Skills[SelectedIndex];
-
-        if (Step == OverlayStep.WaitingForLetter)
+        if (Step == OverlayStep.WaitingForKey)   // inventory: capture the player's own key
         {
-            if (vk == VirtualKeys.Back)
+            if (SelectedIndex < 0 || !IsInventory(SelectedIndex))
             {
-                Clear(slot);
                 Reset();
-                _onChanged();
                 return true;
             }
-
-            if (vk == VirtualKeys.Enter)
+            var slotIndex = InventorySlot(SelectedIndex);
+            if (vk == VirtualKeys.Back)
             {
-                if (slot.ToVk == 0)
-                    return true;
+                _profile.Inventory[slotIndex].FromVk = 0;
+                _profile.Inventory[slotIndex].Enabled = false;
+            }
+            else if (vk != VirtualKeys.Enter)
+            {
+                _profile.SetInventoryKey(slotIndex, vk);   // unique across inventory + skills
             }
             else
             {
-                slot.ToVk = vk;
+                return true;   // Enter drives chat; keep waiting
             }
-
-            slot.Enabled = slot.FromVk != 0;
             Reset();
             _onChanged();
             return true;
         }
 
+        // WaitingForLetter: skill
+        var skills = Skills;
+        if (SelectedIndex < 0 || SelectedIndex >= skills.Count)
+        {
+            Reset();
+            return true;
+        }
+        var id = skills[SelectedIndex].Id;
         if (vk == VirtualKeys.Back)
         {
-            Clear(slot);
+            _profile.ClearSkillLetter(id);
             Reset();
             _onChanged();
             return true;
         }
-
-        // Enter drives Warcraft's chat line, so RemapEngine.Decide passes it through before it
-        // ever reaches the skill lookup. Accepting it here would store a cell that reads
-        // "Enter->T", looks configured, is not reported as dead, and never casts anything.
-        // Keep waiting for a key that can actually work. (Escape is handled at the top as
-        // "cancel", so it can never get this far.)
-        if (vk == VirtualKeys.Enter)
+        if (vk is >= 'A' and <= 'Z')
+        {
+            _profile.SetSkillLetter(id, ((char)vk).ToString());
+            Reset();
+            _onChanged();
             return true;
-
-        slot.FromVk = vk;
-        slot.Enabled = true;
-        Step = OverlayStep.WaitingForLetter;
-        return true;
+        }
+        return true;   // not a letter; keep waiting
     }
 
     public void Reset()
     {
-        Step = OverlayStep.ChoosingSlot;
+        Step = OverlayStep.ChoosingTarget;
         SelectedIndex = -1;
     }
 
     public static int SkillIndexFor(int vk) => vk switch
     {
-        >= '1' and <= '8' => vk - '1',
-        >= VirtualKeys.NumPad1 and <= VirtualKeys.NumPad8 => vk - VirtualKeys.NumPad1,
+        >= '1' and <= '9' => vk - '1',
+        >= VirtualKeys.NumPad1 and <= VirtualKeys.NumPad9 => vk - VirtualKeys.NumPad1,
         _ => -1,
     };
-
-    private static void Clear(KeyMap slot)
-    {
-        slot.FromVk = 0;
-        slot.ToVk = 0;
-        slot.Enabled = false;
-    }
 }

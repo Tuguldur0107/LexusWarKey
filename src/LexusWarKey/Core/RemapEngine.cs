@@ -101,14 +101,20 @@ public sealed class RemapEngine
         // remains the app's own in-game editor shortcut and Warcraft modifier actions survive.
         if (isKeyDown && !ctrlHeld && !altHeld)
         {
-            var macro = profile.ChatMacros.Take(WarKeyProfile.QuickChatSlots)
-                .FirstOrDefault(m => m.IsUsable && m.HotkeyVk == vk);
+            var macro = profile.ChatMacros.FirstOrDefault(m => m.IsUsable && m.HotkeyVk == vk);
             if (macro is not null)
                 return new RemapDecision(RemapAction.SendChat, ChatLines: new[] { macro.Message });
         }
 
-        var map = profile.Skills.FirstOrDefault(m => m.IsUsable && m.FromVk == vk);
-        return map is null ? RemapDecision.PassThrough : new RemapDecision(RemapAction.SendKey, map.ToVk);
+        // Inventory is a static key->key map (item slot keys don't change between matches).
+        var item = profile.Inventory.FirstOrDefault(m => m.IsUsable && m.FromVk == vk);
+        if (item is not null)
+            return new RemapDecision(RemapAction.SendKey, item.ToVk);
+
+        // Skills are NOT remapped here: the app writes each skill's chosen hotkey letter straight into
+        // the game's memory, so the player presses that letter and Warcraft casts natively - nothing
+        // to translate at cast time.
+        return RemapDecision.PassThrough;
     }
 
     public static IReadOnlyList<string> FindDeadBindings(WarKeyProfile profile)
@@ -118,19 +124,17 @@ public sealed class RemapEngine
         if (!profile.Enabled)
             problems.Add("App is disabled; no key remaps will run.");
 
-        var letterless = profile.Skills.Count(m => m.ClaimsKey && m.ToVk == 0);
-        if (letterless > 0)
-            problems.Add($"{letterless} skill slot(s) have your key but no Warcraft letter.");
+        // Skills are position-based (the letter is resolved live) and every inventory slot's game key
+        // is pre-filled to its numpad hotkey, so neither has a "missing target" to warn about.
 
         return problems;
     }
 
     public static IReadOnlyList<int> FindConflicts(WarKeyProfile profile)
     {
-        var sources = profile.Skills
+        var sources = profile.Skills.Concat(profile.Inventory)
             .Where(m => m.ClaimsKey).Select(m => m.FromVk)
-            .Concat(profile.ChatMacros.Take(WarKeyProfile.QuickChatSlots)
-                .Where(m => m.IsUsable).Select(m => m.HotkeyVk));
+            .Concat(profile.ChatMacros.Where(m => m.IsUsable).Select(m => m.HotkeyVk));
 
         return sources.GroupBy(vk => vk).Where(g => g.Count() > 1).Select(g => g.Key).ToList();
     }

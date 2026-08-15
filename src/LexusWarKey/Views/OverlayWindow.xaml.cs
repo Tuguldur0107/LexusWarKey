@@ -1,23 +1,20 @@
 using System.Windows;
 using System.Windows.Input;
-using LexusWarKey.Core;
 using LexusWarKey.Windows;
 
 namespace LexusWarKey.Views;
 
-public sealed record OverlaySlot(int Index, string KeyName, string Background, string Border)
-{
-    public string Number => (Index + 1).ToString();
-}
+/// <summary>One row of the in-game skills list: number, name, default letter, assigned letter, and
+/// the apply status (a letter is "applying" until the writer puts it on the card, then "applied").</summary>
+public sealed record OverlaySlot(int Index, string Number, string Name, string Default, string Assigned,
+                                 string Background, string Border,
+                                 bool IsApplying = false, bool IsApplied = false);
 
 public partial class OverlayWindow : Window
 {
     private bool _dragging;
     private Point _dragStart;
     private double _startLeft, _startTop;
-
-    private const double CellWidth = 62;
-    private const double CellHeight = 46;
 
     public OverlayWindow()
     {
@@ -27,15 +24,17 @@ public partial class OverlayWindow : Window
         DragHandle.MouseLeftButtonDown += OnDragStart;
         DragHandle.MouseMove += OnDragMove;
         DragHandle.MouseLeftButtonUp += OnDragEnd;
-        ApplyCellSize();
     }
 
     public event Action<int>? SlotClicked;
     public event Action<double, double>? Moved;
 
-    public void ShowSlots(IReadOnlyList<OverlaySlot> skills, string prompt)
+    public void ShowSlots(IReadOnlyList<OverlaySlot> skills, IReadOnlyList<OverlaySlot> inventory, string prompt)
     {
         SkillList.ItemsSource = skills;
+        SkillList.Visibility = skills.Count > 0 ? Visibility.Visible : Visibility.Collapsed;
+        SkillsHeader.Visibility = skills.Count > 0 ? Visibility.Visible : Visibility.Collapsed;
+        InventoryGrid.ItemsSource = inventory;
         PromptText.Text = prompt;
         if (!IsVisible)
             Show();
@@ -51,15 +50,9 @@ public partial class OverlayWindow : Window
         }
         else
         {
-            Left = area.Right - Math.Max(ActualWidth, 320) - 24;
+            Left = area.Right - Math.Max(ActualWidth, 300) - 24;
             Top = area.Top + 24;
         }
-    }
-
-    private void ApplyCellSize()
-    {
-        SkillList.Width = CellWidth * WarKeyProfile.SkillColumns;
-        SkillList.Height = CellHeight * WarKeyProfile.SkillRows;
     }
 
     private static bool IsOnScreen(double left, double top, Rect area) =>

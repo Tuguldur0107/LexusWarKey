@@ -203,6 +203,45 @@
             </Setter>
         </Style>
 
+        <!-- The "your key" cap: borderless, so the tile's own frame is the only box. -->
+        <Style x:Key="TileFrom" TargetType="Button">
+            <Setter Property="Cursor" Value="Hand" />
+            <Setter Property="HorizontalAlignment" Value="Stretch" />
+            <Setter Property="VerticalAlignment" Value="Stretch" />
+            <Setter Property="Template">
+                <Setter.Value>
+                    <ControlTemplate TargetType="Button">
+                        <Border x:Name="B" Background="Transparent">
+                            <TextBlock Text="{TemplateBinding Content}" HorizontalAlignment="Center"
+                                       VerticalAlignment="Center" Foreground="{StaticResource B.Text}"
+                                       FontWeight="Bold" FontSize="12" />
+                        </Border>
+                    </ControlTemplate>
+                </Setter.Value>
+            </Setter>
+        </Style>
+
+        <!-- The "game key" sub-line: shown only when set, dim and small. -->
+        <Style x:Key="TileTo" TargetType="Button">
+            <Setter Property="Cursor" Value="Hand" />
+            <Setter Property="HorizontalAlignment" Value="Stretch" />
+            <Setter Property="Template">
+                <Setter.Value>
+                    <ControlTemplate TargetType="Button">
+                        <Border x:Name="B" Background="Transparent" CornerRadius="4" Padding="0,1">
+                            <TextBlock Text="{TemplateBinding Content}" HorizontalAlignment="Center"
+                                       Foreground="{StaticResource B.Dim}" FontSize="10" />
+                        </Border>
+                        <ControlTemplate.Triggers>
+                            <Trigger Property="IsMouseOver" Value="True">
+                                <Setter TargetName="B" Property="Background" Value="#22FFFFFF" />
+                            </Trigger>
+                        </ControlTemplate.Triggers>
+                    </ControlTemplate>
+                </Setter.Value>
+            </Setter>
+        </Style>
+
         <Style x:Key="PanelTitle" TargetType="TextBlock">
             <Setter Property="FontSize" Value="14" />
             <Setter Property="FontWeight" Value="Bold" />

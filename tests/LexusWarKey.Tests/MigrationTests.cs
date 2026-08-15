@@ -45,7 +45,7 @@ public class MigrationTests
     }
 
     [Fact]
-    public void More_than_two_quickchat_macros_are_trimmed_to_two_slots()
+    public void All_quickchat_macros_are_kept_now_that_the_list_is_open()
     {
         var profile = new WarKeyProfile();
         foreach (var line in new[] { "-clear", "-ii", "-hhn", "/fps" })
@@ -53,9 +53,8 @@ public class MigrationTests
 
         profile.NormaliseSlots();
 
-        Assert.Equal(2, profile.ChatMacros.Count);
-        Assert.Equal("-clear", profile.ChatMacros[0].Message);
-        Assert.Equal("-ii", profile.ChatMacros[1].Message);
+        Assert.Equal(4, profile.ChatMacros.Count);
+        Assert.Equal(new[] { "-clear", "-ii", "-hhn", "/fps" }, profile.ChatMacros.Select(m => m.Message));
     }
 
     [Fact]
@@ -66,7 +65,7 @@ public class MigrationTests
 
         profile.NormaliseSlots();
 
-        Assert.Equal(2, profile.ChatMacros.Count);
+        Assert.Single(profile.ChatMacros);
         Assert.Equal("-clear", profile.ChatMacros[0].Message);
         Assert.Single(profile.ChatMacros[0].Messages);
     }

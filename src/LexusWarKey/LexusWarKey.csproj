@@ -20,6 +20,12 @@
     <Resource Include="Assets\logo.png" Condition="Exists('Assets\logo.png')" />
   </ItemGroup>
 
+  <!-- The LoD ability table (id -> letter, name, command-card position). Embedded so the app
+       can recognise abilities in war3's memory without shipping a loose data file. -->
+  <ItemGroup>
+    <EmbeddedResource Include="Assets\lod_ability_table.csv" />
+  </ItemGroup>
+
   <!-- WinForms is referenced only for the tray icon; its global usings would otherwise
        collide with WPF on Application, Point, KeyEventArgs and friends. -->
   <ItemGroup>

@@ -9,6 +9,10 @@ public static class InputSender
 {
     public static readonly IntPtr Signature = new(0x4C57_4B31); // "LWK1"
 
+    /// <summary>Win32 error from the most recent failed injection (0 if the last one succeeded).
+    /// ERROR_ACCESS_DENIED (5) means UIPI blocked it - the game is at a higher integrity than us.</summary>
+    public static int LastError { get; private set; }
+
     /// <summary>Returns false when Windows refused the keystroke — most commonly UIPI, when
     /// the game runs elevated and this app does not. Ignoring that used to make QuickChat type
     /// its text into nothing while looking successful.</summary>
@@ -31,7 +35,9 @@ public static class InputSender
                 },
             },
         };
-        return NativeMethods.SendInput(1, new[] { input }, Marshal.SizeOf<NativeMethods.INPUT>()) == 1;
+        var ok = NativeMethods.SendInput(1, new[] { input }, Marshal.SizeOf<NativeMethods.INPUT>()) == 1;
+        LastError = ok ? 0 : Marshal.GetLastWin32Error();
+        return ok;
     }
 
     public static bool TapKey(int vk)

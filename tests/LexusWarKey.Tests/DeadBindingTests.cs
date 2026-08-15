@@ -36,17 +36,24 @@ public class DeadBindingTests
     }
 
     [Fact]
-    public void Skill_cells_with_no_game_letter_are_reported()
+    public void A_skill_slot_with_only_a_key_is_fine_because_the_letter_is_live()
     {
+        // Position-based: a skill needs only the player's key; nothing to warn about.
         var p = Working();
         p.Skills[0].FromVk = 'C';
         p.Skills[0].Enabled = true;
-        p.Skills[3].FromVk = 'R';
-        p.Skills[3].Enabled = true;
 
-        var problems = RemapEngine.FindDeadBindings(p);
+        Assert.Empty(RemapEngine.FindDeadBindings(p));
+    }
 
-        Assert.Contains(problems, x => x.Contains("2 skill slot"));
+    [Fact]
+    public void An_inventory_slot_with_only_a_key_is_fine_because_the_game_key_is_prefilled()
+    {
+        var p = Working();
+        p.Inventory[0].FromVk = 'C';
+        p.Inventory[0].Enabled = true;
+
+        Assert.Empty(RemapEngine.FindDeadBindings(p));
     }
 
     [Fact]

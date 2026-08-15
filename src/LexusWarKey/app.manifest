@@ -2,7 +2,11 @@
 <assembly manifestVersion="1.0" xmlns="urn:schemas-microsoft-com:asm.v1">
   <assemblyIdentity version="1.0.0.0" name="LexusWarKey"/>
 
-  <!-- Runs as a normal user. A keyboard remapper needs no elevation. -->
+  <!-- Runs at the invoker's level. This MUST match Warcraft's integrity: keystroke injection
+       (inventory, QuickChat) is blocked between mismatched levels, so an elevated app cannot send
+       keys to a normal-launched war3. Run the game normally -> run this normally. Run the game
+       elevated (e.g. via an elevated GameRanger) -> run this as administrator too. Memory access for
+       the skill layer works whenever the two match (same user, same integrity). -->
   <trustInfo xmlns="urn:schemas-microsoft-com:asm.v2">
     <security>
       <requestedPrivileges xmlns="urn:schemas-microsoft-com:asm.v3">

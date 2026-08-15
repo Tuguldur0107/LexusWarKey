@@ -130,7 +130,9 @@ public sealed class KeyboardHookService : IDisposable
                     target = releasedTarget;
                 }
 
-                InputSender.SendKey(target, isDown);
+                var sent = InputSender.SendKey(target, isDown);
+                if (isDown)
+                    DiagnosticLog.Write($"remap {vk}->{target} sent={sent} err={InputSender.LastError}");
                 return true; // swallow the original
 
             case RemapAction.SendChat when isDown:
@@ -296,7 +298,10 @@ public sealed class KeyboardHookService : IDisposable
             {
                 // QuickChat always uses the fixed all-chat path.
                 if (!InputSender.TapWithModifier(VirtualKeys.LShift, VirtualKeys.Enter))
+                {
+                    DiagnosticLog.Write($"QuickChat: Shift+Enter injection refused err={InputSender.LastError} (5=UIPI/game elevated)");
                     return; // Windows refused the injection (UIPI?) — stop, don't type into nothing
+                }
 
                 // The prompt must exist before the text arrives, and the game opens it on its
                 // own schedule: one frame at best, several under load. Typing early does not
@@ -305,7 +310,10 @@ public sealed class KeyboardHookService : IDisposable
                 // allowed to feed "-clear" to the hero as movement.
                 Thread.Sleep(80);
                 if (!InputSender.TypeText(line))
+                {
+                    DiagnosticLog.Write("QuickChat: text injection refused/partial");
                     return; // partial delivery — pressing Enter now would send a mangled line
+                }
 
                 Thread.Sleep(50);
                 InputSender.TapKey(VirtualKeys.Enter);     // send it

@@ -8,9 +8,9 @@ public class ChatLineTests
     private static (RemapEngine engine, WarKeyProfile profile) Setup(bool focused = true)
     {
         var profile = WarKeyProfile.CreateDefault();
-        profile.Skills[0].FromVk = 'Q';
-        profile.Skills[0].ToVk = 'T';
-        profile.Skills[0].Enabled = true;
+        profile.Inventory[0].FromVk = 'Q';   // an inventory remap, to check remapping resumes
+        profile.Inventory[0].ToVk = 'T';
+        profile.Inventory[0].Enabled = true;
         profile.ChatMacros[0].Message = "-clear";
         return (new RemapEngine(() => profile, () => focused), profile);
     }

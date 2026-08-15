@@ -8,12 +8,14 @@ public class RemapEngineTests
     private const int Q = 'Q';
     private const int T = 'T';
 
+    // The engine only translates INVENTORY and QuickChat now; skills are written straight to the
+    // game's memory, so they never pass through here. These tests exercise the engine via inventory.
     private static (RemapEngine Engine, WarKeyProfile Profile) Create(bool gameFocused = true)
     {
         var profile = WarKeyProfile.CreateDefault();
-        profile.Skills[0].FromVk = Q;
-        profile.Skills[0].ToVk = T;
-        profile.Skills[0].Enabled = true;
+        profile.Inventory[0].FromVk = Q;
+        profile.Inventory[0].ToVk = T;
+        profile.Inventory[0].Enabled = true;
         profile.ChatMacros[0].Message = "-clear";
         profile.ChatMacros[1].Message = "-ii";
         return (new RemapEngine(() => profile, () => gameFocused), profile);
@@ -98,8 +100,8 @@ public class RemapEngineTests
     public void Incomplete_or_self_maps_are_ignored()
     {
         var profile = WarKeyProfile.CreateDefault();
-        profile.Skills[0] = new KeyMap { FromVk = Q, ToVk = Q, Enabled = true };
-        profile.Skills[1] = new KeyMap { FromVk = 'W', ToVk = 0, Enabled = true };
+        profile.Inventory[0] = new KeyMap { FromVk = Q, ToVk = Q, Enabled = true };   // self-map
+        profile.Inventory[1] = new KeyMap { FromVk = 'W', ToVk = 0, Enabled = true }; // no target
         var engine = new RemapEngine(() => profile, () => true);
 
         Assert.Equal(RemapAction.PassThrough, engine.Decide(Q, true, false, false).Action);

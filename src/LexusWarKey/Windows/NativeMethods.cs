@@ -48,9 +48,24 @@ internal static class NativeMethods
         public IntPtr dwExtraInfo;
     }
 
+    [StructLayout(LayoutKind.Sequential)]
+    internal struct MOUSEINPUT
+    {
+        public int dx;
+        public int dy;
+        public uint mouseData;
+        public uint dwFlags;
+        public uint time;
+        public IntPtr dwExtraInfo;
+    }
+
+    // The union must be sized for its LARGEST member (MOUSEINPUT), or Marshal.SizeOf<INPUT> comes out
+    // 32 on x64 instead of the 40 Windows expects, and every SendInput fails with ERROR_INVALID_
+    // PARAMETER (87). That is what silently broke inventory remaps and QuickChat.
     [StructLayout(LayoutKind.Explicit)]
     internal struct INPUTUNION
     {
+        [FieldOffset(0)] public MOUSEINPUT mi;
         [FieldOffset(0)] public KEYBDINPUT ki;
     }
 

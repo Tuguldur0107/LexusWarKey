@@ -7,33 +7,115 @@
         Topmost="True" ShowInTaskbar="False" ShowActivated="False"
         FontFamily="Segoe UI Variable Text, Segoe UI" UseLayoutRounding="True">
 
-    <Border Background="#80000000" CornerRadius="8" BorderBrush="#59FFFFFF" BorderThickness="1" Padding="10">
+    <Border Background="#CC000000" CornerRadius="8" BorderBrush="#66FFFFFF" BorderThickness="1" Padding="10" MinWidth="270">
         <StackPanel>
             <Border x:Name="DragHandle" Background="#01FFFFFF" Cursor="SizeAll" Padding="2,0,2,6">
                 <Grid>
-                    <TextBlock Text="Lexus WarKey" Foreground="#B3FFFFFF" FontSize="11" FontWeight="SemiBold" />
+                    <TextBlock Text="Skills &amp; Items" Foreground="#B3FFFFFF" FontSize="11" FontWeight="SemiBold" />
                     <TextBlock x:Name="PromptText" Foreground="#FFFFFF" FontSize="11"
                                HorizontalAlignment="Right" VerticalAlignment="Center"
-                               MaxWidth="300" TextTrimming="CharacterEllipsis" Text="" />
+                               MaxWidth="240" TextTrimming="CharacterEllipsis" Text="" />
                 </Grid>
             </Border>
 
-            <ItemsControl x:Name="SkillList" VerticalAlignment="Bottom">
-                <ItemsControl.ItemsPanel>
-                    <ItemsPanelTemplate><UniformGrid Columns="4" /></ItemsPanelTemplate>
-                </ItemsControl.ItemsPanel>
+            <TextBlock x:Name="SkillsHeader" Text="Skills" Foreground="#66FFFFFF" FontSize="10"
+                       FontWeight="SemiBold" Margin="2,2,0,1" />
+            <ItemsControl x:Name="SkillList">
                 <ItemsControl.ItemTemplate>
                     <DataTemplate>
-                        <Border Margin="2" CornerRadius="5" Cursor="Hand"
+                        <Border Margin="0,2" CornerRadius="5" Cursor="Hand" Padding="8,4"
                                 Background="{Binding Background}" BorderBrush="{Binding Border}" BorderThickness="1.5"
                                 Tag="{Binding}" MouseLeftButtonDown="Slot_Click">
                             <Grid>
-                                <TextBlock Text="{Binding Number}" Foreground="#59FFFFFF" FontSize="9"
-                                           HorizontalAlignment="Left" VerticalAlignment="Top" Margin="4,2,0,0" />
-                                <TextBlock Text="{Binding KeyName}" Foreground="#FFFFFF" FontSize="13"
-                                           FontWeight="SemiBold" HorizontalAlignment="Center" VerticalAlignment="Center" />
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="16" />
+                                    <ColumnDefinition Width="*" />
+                                    <ColumnDefinition Width="26" />
+                                    <ColumnDefinition Width="30" />
+                                    <ColumnDefinition Width="16" />
+                                </Grid.ColumnDefinitions>
+                                <TextBlock Grid.Column="0" Text="{Binding Number}" Foreground="#80FFFFFF" FontSize="10"
+                                           VerticalAlignment="Center" />
+                                <TextBlock Grid.Column="1" Text="{Binding Name}" Foreground="#FFFFFF" FontSize="12"
+                                           VerticalAlignment="Center" TextTrimming="CharacterEllipsis" MaxWidth="150" />
+                                <TextBlock Grid.Column="2" Text="{Binding Default}" Foreground="#80FFFFFF" FontSize="11"
+                                           HorizontalAlignment="Center" VerticalAlignment="Center" />
+                                <TextBlock Grid.Column="3" Text="{Binding Assigned}" Foreground="#3FBF6A" FontSize="13"
+                                           FontWeight="Bold" HorizontalAlignment="Center" VerticalAlignment="Center" />
+                                <Grid Grid.Column="4">
+                                    <Ellipse x:Name="SkillPulse" Width="8" Height="8" Fill="#E6A23C"
+                                             HorizontalAlignment="Center" VerticalAlignment="Center" Visibility="Collapsed" />
+                                    <TextBlock x:Name="SkillCheck" Text="&#x2713;" Foreground="#3FBF6A" FontSize="12"
+                                               FontWeight="Bold" HorizontalAlignment="Center" VerticalAlignment="Center"
+                                               Visibility="Collapsed" />
+                                </Grid>
                             </Grid>
                         </Border>
+                        <DataTemplate.Triggers>
+                            <DataTrigger Binding="{Binding IsApplying}" Value="True">
+                                <Setter TargetName="SkillPulse" Property="Visibility" Value="Visible" />
+                                <DataTrigger.EnterActions>
+                                    <BeginStoryboard x:Name="SkillPulseSb">
+                                        <Storyboard>
+                                            <DoubleAnimation Storyboard.TargetName="SkillPulse"
+                                                             Storyboard.TargetProperty="Opacity"
+                                                             From="1" To="0.2" Duration="0:0:0.6"
+                                                             AutoReverse="True" RepeatBehavior="Forever" />
+                                        </Storyboard>
+                                    </BeginStoryboard>
+                                </DataTrigger.EnterActions>
+                                <DataTrigger.ExitActions>
+                                    <StopStoryboard BeginStoryboardName="SkillPulseSb" />
+                                </DataTrigger.ExitActions>
+                            </DataTrigger>
+                            <DataTrigger Binding="{Binding IsApplied}" Value="True">
+                                <Setter TargetName="SkillCheck" Property="Visibility" Value="Visible" />
+                            </DataTrigger>
+                        </DataTemplate.Triggers>
+                    </DataTemplate>
+                </ItemsControl.ItemTemplate>
+            </ItemsControl>
+
+            <TextBlock Text="Items" Foreground="#66FFFFFF" FontSize="10"
+                       FontWeight="SemiBold" Margin="2,6,0,1" />
+            <!-- Inventory keeps its 2-column x 3-row shape, matching the hero inventory. -->
+            <ItemsControl x:Name="InventoryGrid">
+                <ItemsControl.ItemsPanel>
+                    <ItemsPanelTemplate>
+                        <UniformGrid Columns="2" />
+                    </ItemsPanelTemplate>
+                </ItemsControl.ItemsPanel>
+                <ItemsControl.ItemTemplate>
+                    <DataTemplate>
+                        <Border Margin="2" CornerRadius="5" Cursor="Hand" Padding="6,3"
+                                Background="{Binding Background}" BorderBrush="{Binding Border}" BorderThickness="1.5"
+                                Tag="{Binding}" MouseLeftButtonDown="Slot_Click">
+                            <Grid>
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="14" />
+                                    <ColumnDefinition Width="*" />
+                                    <ColumnDefinition Width="Auto" />
+                                    <ColumnDefinition Width="14" />
+                                </Grid.ColumnDefinitions>
+                                <TextBlock Grid.Column="0" Text="{Binding Number}" Foreground="#80FFFFFF" FontSize="9"
+                                           VerticalAlignment="Center" />
+                                <StackPanel Grid.Column="1" VerticalAlignment="Center">
+                                    <TextBlock Text="{Binding Name}" Foreground="#FFFFFF" FontSize="11"
+                                               TextTrimming="CharacterEllipsis" />
+                                    <TextBlock Text="{Binding Default}" Foreground="#66FFFFFF" FontSize="9" />
+                                </StackPanel>
+                                <TextBlock Grid.Column="2" Text="{Binding Assigned}" Foreground="#3FBF6A" FontSize="12"
+                                           FontWeight="Bold" VerticalAlignment="Center" Margin="4,0,2,0" />
+                                <TextBlock x:Name="ItemCheck" Grid.Column="3" Text="&#x2713;" Foreground="#3FBF6A"
+                                           FontSize="11" FontWeight="Bold" VerticalAlignment="Center"
+                                           HorizontalAlignment="Center" Visibility="Collapsed" />
+                            </Grid>
+                        </Border>
+                        <DataTemplate.Triggers>
+                            <DataTrigger Binding="{Binding IsApplied}" Value="True">
+                                <Setter TargetName="ItemCheck" Property="Visibility" Value="Visible" />
+                            </DataTrigger>
+                        </DataTemplate.Triggers>
                     </DataTemplate>
                 </ItemsControl.ItemTemplate>
             </ItemsControl>
