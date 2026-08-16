@@ -19,7 +19,28 @@ public partial class MainWindow : Window
         SourceInitialized += (_, _) => Windows.WindowChrome.UseDarkTitleBar(this);
         Loaded += (_, _) => _tray = new TrayIcon(this, ExitForReal);
         if (Vm is { } vm)
+        {
             vm.ReloginRequested += OnReloginRequested;
+            vm.BannedDetected += OnBannedDetected;
+        }
+    }
+
+    private bool _banned;
+
+    // The server reported this account is banned from WarKey: tell the user and exit.
+    private void OnBannedDetected()
+    {
+        Dispatcher.Invoke(() =>
+        {
+            if (_banned)
+                return;
+            _banned = true;
+            App.Auth.ClearToken();
+            MessageBox.Show(
+                "Таны Discord акаунтыг Lexus WarKey ашиглахыг хориглосон байна.\nАдминтай холбогдоно уу.",
+                "Lexus WarKey", MessageBoxButton.OK, MessageBoxImage.Warning);
+            ExitForReal();
+        });
     }
 
     // The token expired or the player logged out: clear it and require Discord sign-in again.

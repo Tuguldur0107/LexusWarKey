@@ -250,6 +250,9 @@ public sealed partial class MainViewModel : ObservableObject
     /// came back unauthorized) or the player pressed log out. The window handles it by showing login.</summary>
     public event Action? ReloginRequested;
 
+    /// <summary>Raised when the server reports this account is banned from WarKey.</summary>
+    public event Action? BannedDetected;
+
     public string VersionText
     {
         get
@@ -344,7 +347,9 @@ public sealed partial class MainViewModel : ObservableObject
             return;
         var version = VersionText.TrimStart('v');
         var result = await auth.HeartbeatAsync(version);
-        if (result == Core.HeartbeatResult.Unauthorized)
+        if (result == Core.HeartbeatResult.Banned)
+            Application.Current?.Dispatcher.BeginInvoke(new Action(() => BannedDetected?.Invoke()));
+        else if (result == Core.HeartbeatResult.Unauthorized)
             Application.Current?.Dispatcher.BeginInvoke(new Action(() => ReloginRequested?.Invoke()));
     }
 

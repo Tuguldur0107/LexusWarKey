@@ -8,7 +8,7 @@ using System.Text.Json;
 
 namespace LexusWarKey.Core;
 
-public enum HeartbeatResult { Ok, Unauthorized, Offline }
+public enum HeartbeatResult { Ok, Unauthorized, Banned, Offline }
 
 /// <summary>Discord sign-in for the desktop app. Reuses the platform server's OAuth "poll" flow: the
 /// app opens the browser to the Discord authorize URL with a random session id, then polls the server
@@ -136,7 +136,19 @@ public sealed class AuthService
             req.Headers.Authorization = new AuthenticationHeaderValue("Bearer", Token);
             req.Content = new StringContent(JsonSerializer.Serialize(new { version }), Encoding.UTF8, "application/json");
             var resp = await Http.SendAsync(req);
-            if (resp.StatusCode is HttpStatusCode.Unauthorized or HttpStatusCode.Forbidden)
+            if (resp.StatusCode == HttpStatusCode.Forbidden)
+            {
+                // A ban comes back as 403 { "error": "banned" }; anything else 403/401 is a bad token.
+                try
+                {
+                    using var doc = JsonDocument.Parse(await resp.Content.ReadAsStringAsync());
+                    if (doc.RootElement.TryGetProperty("error", out var e) && e.GetString() == "banned")
+                        return HeartbeatResult.Banned;
+                }
+                catch { /* fall through to unauthorized */ }
+                return HeartbeatResult.Unauthorized;
+            }
+            if (resp.StatusCode == HttpStatusCode.Unauthorized)
                 return HeartbeatResult.Unauthorized;
             return HeartbeatResult.Ok;
         }
