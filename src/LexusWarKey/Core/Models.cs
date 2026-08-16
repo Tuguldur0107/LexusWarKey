@@ -153,6 +153,10 @@ public sealed class WarKeyProfile
 
     public void NormaliseSlots()
     {
+        // The app has no on/off switch any more — it is active whenever it is running. Force it on so
+        // an old profile saved while disabled can't leave remapping silently dead.
+        Enabled = true;
+
         Skills ??= new();
         Inventory ??= new();
         ChatMacros ??= new();
