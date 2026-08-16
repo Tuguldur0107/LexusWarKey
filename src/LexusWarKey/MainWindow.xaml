@@ -389,8 +389,8 @@
                                     <ColumnDefinition Width="*" />
                                     <ColumnDefinition Width="Auto" />
                                 </Grid.ColumnDefinitions>
-                                <Button Grid.Column="0" Style="{StaticResource KeyCell}" Content="{Binding NewHotkeyDisplay}"
-                                        Width="72" Command="{Binding CaptureNewHotkeyCommand}" ToolTip="Товч сонгох" />
+                                <Button Grid.Column="0" Style="{StaticResource KeyCapChip}" Content="{Binding NewHotkeyDisplay}"
+                                        MinWidth="66" Height="34" Command="{Binding CaptureNewHotkeyCommand}" ToolTip="Товч сонгох" />
                                 <TextBox Grid.Column="1" Margin="8,0" Padding="8,5" FontFamily="Consolas"
                                          VerticalContentAlignment="Center" MaxLines="1"
                                          Text="{Binding NewMessage, UpdateSourceTrigger=PropertyChanged}">
@@ -403,51 +403,59 @@
                             </Grid>
                         </Border>
 
-                        <Grid DockPanel.Dock="Top" Margin="8,6,10,4">
+                        <Grid DockPanel.Dock="Top" Margin="0,4,10,5">
                             <Grid.ColumnDefinitions>
-                                <ColumnDefinition Width="72" />
+                                <ColumnDefinition Width="63" />
                                 <ColumnDefinition Width="*" />
                                 <ColumnDefinition Width="28" />
                             </Grid.ColumnDefinitions>
-                            <TextBlock Grid.Column="0" Text="Товч" Foreground="{StaticResource B.Dim}" FontSize="10" />
-                            <TextBlock Grid.Column="1" Text="Мессеж" Foreground="{StaticResource B.Dim}" FontSize="10" Margin="8,0,0,0" />
+                            <TextBlock Grid.Column="0" Text="ТОВЧ" Foreground="{StaticResource B.Dim}" FontSize="10"
+                                       FontWeight="SemiBold" Margin="13,0,0,0" />
+                            <TextBlock Grid.Column="1" Text="МЕССЕЖ" Foreground="{StaticResource B.Dim}" FontSize="10"
+                                       FontWeight="SemiBold" Margin="12,0,0,0" />
                         </Grid>
 
                         <ScrollViewer VerticalScrollBarVisibility="Auto" Padding="0,0,6,0">
                             <ItemsControl ItemsSource="{Binding ChatEntries}">
                                 <ItemsControl.ItemTemplate>
                                     <DataTemplate>
-                                        <Border x:Name="row" Background="#13161B" BorderBrush="#232732" BorderThickness="1"
-                                                CornerRadius="7" Margin="0,0,0,4">
-                                            <Grid>
+                                        <Border x:Name="row" BorderBrush="#242833" BorderThickness="1"
+                                                CornerRadius="8" Margin="0,0,0,5">
+                                            <Border.Background>
+                                                <LinearGradientBrush StartPoint="0,0" EndPoint="0,1">
+                                                    <GradientStop Color="#171A21" Offset="0" />
+                                                    <GradientStop Color="#12141A" Offset="1" />
+                                                </LinearGradientBrush>
+                                            </Border.Background>
+                                            <Grid Height="42">
                                                 <Grid.ColumnDefinitions>
                                                     <ColumnDefinition Width="4" />
-                                                    <ColumnDefinition Width="72" />
+                                                    <ColumnDefinition Width="Auto" />
                                                     <ColumnDefinition Width="*" />
                                                     <ColumnDefinition Width="Auto" />
                                                 </Grid.ColumnDefinitions>
 
-                                                <!-- Left accent bar (lights up on hover) -->
+                                                <!-- Left accent bar (lights up on hover / focus) -->
                                                 <Border x:Name="accent" Grid.Column="0" Background="Transparent"
-                                                        CornerRadius="7,0,0,7" />
+                                                        CornerRadius="8,0,0,8" />
 
-                                                <Button Grid.Column="1" Style="{StaticResource KeyCell}" Margin="6,3"
-                                                        Content="{Binding HotkeyDisplay}"
+                                                <Button Grid.Column="1" Style="{StaticResource KeyCapChip}" MinWidth="50"
+                                                        Margin="9,0,0,0" Content="{Binding HotkeyDisplay}"
                                                         Command="{Binding CaptureCommand}" ToolTip="Товч солих" />
-                                                <TextBox x:Name="msg" Grid.Column="2" Margin="6,0,6,0" Padding="8,6"
-                                                         FontFamily="Consolas" FontSize="13"
+                                                <TextBox x:Name="msg" Grid.Column="2" Margin="12,0,6,0" Padding="0"
+                                                         FontFamily="Consolas" FontSize="13.5"
                                                          VerticalContentAlignment="Center" MaxLines="1"
                                                          BorderThickness="0" Background="Transparent"
+                                                         Foreground="{StaticResource B.Text}"
                                                          Text="{Binding Message, UpdateSourceTrigger=PropertyChanged}" />
                                                 <Button x:Name="del" Grid.Column="3" Style="{StaticResource CaptionButton}"
-                                                        Content="&#x2715;" Opacity="0.28" Margin="0,0,4,0"
+                                                        Content="&#x2715;" Opacity="0.25" Margin="0,0,6,0"
                                                         Command="{Binding RemoveCommand}" ToolTip="Устгах" />
                                             </Grid>
                                         </Border>
                                         <DataTemplate.Triggers>
                                             <Trigger SourceName="row" Property="IsMouseOver" Value="True">
-                                                <Setter TargetName="row" Property="Background" Value="#191D25" />
-                                                <Setter TargetName="row" Property="BorderBrush" Value="#33405A" />
+                                                <Setter TargetName="row" Property="BorderBrush" Value="#37445F" />
                                                 <Setter TargetName="accent" Property="Background" Value="{StaticResource B.Blue}" />
                                                 <Setter TargetName="del" Property="Opacity" Value="1" />
                                             </Trigger>

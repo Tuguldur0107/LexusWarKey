@@ -68,6 +68,36 @@
             </Setter>
         </Style>
 
+        <!-- Keycap-styled chip: looks like a physical keyboard key. Click to rebind. -->
+        <Style x:Key="KeyCapChip" TargetType="Button">
+            <Setter Property="Cursor" Value="Hand" />
+            <Setter Property="Height" Value="30" />
+            <Setter Property="MinWidth" Value="46" />
+            <Setter Property="Template">
+                <Setter.Value>
+                    <ControlTemplate TargetType="Button">
+                        <Border x:Name="cap" CornerRadius="6" BorderThickness="1,1,1,2" BorderBrush="#3C424F"
+                                MinWidth="{TemplateBinding MinWidth}">
+                            <Border.Background>
+                                <LinearGradientBrush StartPoint="0,0" EndPoint="0,1">
+                                    <GradientStop Color="#2C303B" Offset="0" />
+                                    <GradientStop Color="#1E212A" Offset="1" />
+                                </LinearGradientBrush>
+                            </Border.Background>
+                            <TextBlock Text="{TemplateBinding Content}" HorizontalAlignment="Center" VerticalAlignment="Center"
+                                       Margin="8,0" Foreground="{StaticResource B.Text}" FontWeight="Bold" FontSize="13"
+                                       FontFamily="Consolas" TextTrimming="CharacterEllipsis" />
+                        </Border>
+                        <ControlTemplate.Triggers>
+                            <Trigger Property="IsMouseOver" Value="True">
+                                <Setter TargetName="cap" Property="BorderBrush" Value="{StaticResource B.Blue}" />
+                            </Trigger>
+                        </ControlTemplate.Triggers>
+                    </ControlTemplate>
+                </Setter.Value>
+            </Setter>
+        </Style>
+
         <!-- Custom window caption buttons (borderless window) -->
         <Style x:Key="CaptionButton" TargetType="Button">
             <Setter Property="Width" Value="34" />
