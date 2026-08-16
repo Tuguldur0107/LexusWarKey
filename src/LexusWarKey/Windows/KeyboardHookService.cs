@@ -15,8 +15,17 @@ public sealed class KeyboardHookService : IDisposable
     private readonly RemapEngine _engine;
 
     private readonly NativeMethods.LowLevelKeyboardProc _callback; // kept alive; a collected delegate crashes the hook
+    private readonly NativeMethods.LowLevelKeyboardProc _mouseCallback; // same signature; mouse LL hook
     private IntPtr _hook = IntPtr.Zero;
+    private IntPtr _mouseHook = IntPtr.Zero;
     private long _lastCallbackTicks;
+
+    /// <summary>While true, mouse triggers (wheel/side buttons) are captured for a rebind in the main
+    /// window instead of dispatched. The overlay uses <see cref="ConfigMode"/> instead.</summary>
+    public bool CaptureMode { get; set; }
+
+    /// <summary>A mouse trigger pressed while <see cref="CaptureMode"/> is on — the window binds it.</summary>
+    public event Action<int>? CaptureInput;
 
     /// <summary>Which of the app's own shortcuts are physically held, so auto-repeat fires once.</summary>
     private readonly HashSet<int> _shortcutHeld = new();
@@ -35,6 +44,7 @@ public sealed class KeyboardHookService : IDisposable
     {
         _engine = engine;
         _callback = HookCallback;
+        _mouseCallback = MouseHookCallback;
     }
 
     public bool IsInstalled => _hook != IntPtr.Zero;
@@ -79,6 +89,8 @@ public sealed class KeyboardHookService : IDisposable
         _hook = NativeMethods.SetWindowsHookEx(NativeMethods.WH_KEYBOARD_LL, _callback, module, 0);
         if (_hook == IntPtr.Zero)
             throw new InvalidOperationException("Windows refused the keyboard hook.");
+        // Mouse triggers are a bonus: if the mouse hook is refused, keyboard remapping still works.
+        _mouseHook = NativeMethods.SetWindowsHookEx(NativeMethods.WH_MOUSE_LL, _mouseCallback, module, 0);
         _lastCallbackTicks = Environment.TickCount64;
     }
 
@@ -107,6 +119,11 @@ public sealed class KeyboardHookService : IDisposable
         ReleaseHeldRemaps();
         NativeMethods.UnhookWindowsHookEx(_hook);
         _hook = IntPtr.Zero;
+        if (_mouseHook != IntPtr.Zero)
+        {
+            NativeMethods.UnhookWindowsHookEx(_mouseHook);
+            _mouseHook = IntPtr.Zero;
+        }
     }
 
     /// <summary>Carries out a decision. Returns true when the original input was consumed.</summary>
@@ -262,6 +279,106 @@ public sealed class KeyboardHookService : IDisposable
         {
             // A hook that throws would be silently removed by Windows — always fall through.
             return NativeMethods.CallNextHookEx(_hook, nCode, wParam, lParam);
+        }
+    }
+
+    private IntPtr MouseHookCallback(int nCode, IntPtr wParam, IntPtr lParam)
+    {
+        if (nCode < 0)
+            return NativeMethods.CallNextHookEx(_mouseHook, nCode, wParam, lParam);
+
+        var msg = (int)wParam;
+        // Only the wheel and middle/side buttons are triggers. Bail before marshalling on every
+        // mouse move, and never touch the left/right buttons the player games with.
+        switch (msg)
+        {
+            case NativeMethods.WM_MOUSEWHEEL:
+            case NativeMethods.WM_XBUTTONDOWN:
+            case NativeMethods.WM_XBUTTONUP:
+            case NativeMethods.WM_MBUTTONDOWN:
+            case NativeMethods.WM_MBUTTONUP:
+                break;
+            default:
+                return NativeMethods.CallNextHookEx(_mouseHook, nCode, wParam, lParam);
+        }
+
+        try
+        {
+            var data = System.Runtime.InteropServices.Marshal.PtrToStructure<NativeMethods.MSLLHOOKSTRUCT>(lParam);
+            if (data.dwExtraInfo == InputSender.Signature || (data.flags & NativeMethods.LLMHF_INJECTED) != 0)
+                return NativeMethods.CallNextHookEx(_mouseHook, nCode, wParam, lParam);
+
+            int vk;
+            bool isDown;
+            var isWheel = false;
+            switch (msg)
+            {
+                case NativeMethods.WM_MOUSEWHEEL:
+                    var delta = (short)((data.mouseData >> 16) & 0xFFFF);
+                    if (delta == 0)
+                        return NativeMethods.CallNextHookEx(_mouseHook, nCode, wParam, lParam);
+                    vk = delta > 0 ? VirtualKeys.WheelUp : VirtualKeys.WheelDown;
+                    isDown = true;
+                    isWheel = true;
+                    break;
+                case NativeMethods.WM_XBUTTONDOWN:
+                case NativeMethods.WM_XBUTTONUP:
+                    vk = ((data.mouseData >> 16) & 0xFFFF) == 2 ? VirtualKeys.MouseX2 : VirtualKeys.MouseX1;
+                    isDown = msg == NativeMethods.WM_XBUTTONDOWN;
+                    break;
+                default:
+                    vk = VirtualKeys.MouseMiddle;
+                    isDown = msg == NativeMethods.WM_MBUTTONDOWN;
+                    break;
+            }
+
+            // Rebinding from the main window: capture instead of dispatch.
+            if (CaptureMode)
+            {
+                if (isDown)
+                    CaptureInput?.Invoke(vk);
+                return (IntPtr)1;
+            }
+            // The in-game overlay owns input while open.
+            if (ConfigMode)
+            {
+                if (isDown)
+                    ConfigKeyPressed?.Invoke(vk);
+                return (IntPtr)1;
+            }
+
+            var ctrl = InputSender.IsKeyHeld(VirtualKeys.Control);
+            var alt = InputSender.IsKeyHeld(VirtualKeys.Alt);
+            var decision = _engine.Decide(vk, isDown, ctrl, alt);
+
+            var consumed = isWheel ? DispatchWheel(decision) : Dispatch(decision, vk, isDown);
+            return consumed ? (IntPtr)1 : NativeMethods.CallNextHookEx(_mouseHook, nCode, wParam, lParam);
+        }
+        catch
+        {
+            return NativeMethods.CallNextHookEx(_mouseHook, nCode, wParam, lParam);
+        }
+    }
+
+    // A wheel notch has no release, so it fires as one tap: a key remap taps its target down+up,
+    // QuickChat sends once. Anything unbound passes through.
+    private bool DispatchWheel(RemapDecision decision)
+    {
+        switch (decision.Action)
+        {
+            case RemapAction.SendKey:
+                InputSender.SendKey(decision.SendVk, true);
+                InputSender.SendKey(decision.SendVk, false);
+                return true;
+            case RemapAction.SendChat:
+                if (Interlocked.CompareExchange(ref _quickChatInFlight, 1, 0) != 0)
+                    return true;
+                _engine.SuspendedForTyping = true;
+                var lines = decision.ChatLines ?? Array.Empty<string>();
+                ThreadPool.QueueUserWorkItem(_ => SendChatLines(lines));
+                return true;
+            default:
+                return false;
         }
     }
 

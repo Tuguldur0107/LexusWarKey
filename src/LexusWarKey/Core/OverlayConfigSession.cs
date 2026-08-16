@@ -50,7 +50,7 @@ public sealed class OverlayConfigSession
             ? "No skills detected - select your hero"
             : $"Press a number 1-{TotalCount}, then a key",
         OverlayStep.WaitingForLetter => $"{TargetName}: press the letter (Backspace clears, Esc cancels)",
-        _ => $"{TargetName}: press your key (Backspace clears, Esc cancels)",
+        _ => $"{TargetName}: press your key / scroll / side button (Backspace clears, Esc cancels)",
     };
 
     private string TargetName

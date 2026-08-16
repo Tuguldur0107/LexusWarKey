@@ -9,6 +9,23 @@ internal static class NativeMethods
     internal const int WM_SYSKEYDOWN = 0x0104, WM_SYSKEYUP = 0x0105;
     internal const uint LLKHF_INJECTED = 0x10;
 
+    internal const int WH_MOUSE_LL = 14;
+    internal const int WM_MOUSEWHEEL = 0x020A;
+    internal const int WM_MBUTTONDOWN = 0x0207, WM_MBUTTONUP = 0x0208;
+    internal const int WM_XBUTTONDOWN = 0x020B, WM_XBUTTONUP = 0x020C;
+    internal const uint LLMHF_INJECTED = 0x01;
+
+    [StructLayout(LayoutKind.Sequential)]
+    internal struct MSLLHOOKSTRUCT
+    {
+        public int ptX;
+        public int ptY;
+        public uint mouseData;   // wheel delta (hi word, signed) or X-button id (hi word: 1 or 2)
+        public uint flags;
+        public uint time;
+        public IntPtr dwExtraInfo;
+    }
+
     [StructLayout(LayoutKind.Sequential)]
     internal struct KBDLLHOOKSTRUCT
     {

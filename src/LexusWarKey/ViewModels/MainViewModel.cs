@@ -177,6 +177,10 @@ public sealed partial class MainViewModel : ObservableObject
     [ObservableProperty] private bool _hasProblems;
     [ObservableProperty] private bool _isCapturing;
 
+    // While a rebind is open, let the mouse hook capture wheel/side-button triggers too.
+    // (Only ever fires after construction, so _hook is set.)
+    partial void OnIsCapturingChanged(bool value) => _hook.CaptureMode = value;
+
     private CaptureRequest? _capture;
     private OverlayWindow? _overlay;
 
@@ -293,6 +297,8 @@ public sealed partial class MainViewModel : ObservableObject
         _hook = new KeyboardHookService(_engine);
         _hook.OverlayToggleRequested += () => Application.Current?.Dispatcher.BeginInvoke(new Action(ToggleOverlay));
         _hook.ConfigKeyPressed += vk => Application.Current?.Dispatcher.BeginInvoke(new Action(() => OnOverlayKey(vk)));
+        // Mouse triggers (wheel / side buttons) reach a main-window rebind through here.
+        _hook.CaptureInput += vk => Application.Current?.Dispatcher.BeginInvoke(new Action(() => HandleCaptureKey(vk)));
 
         _overlaySession = new OverlayConfigSession(
             _profile,
