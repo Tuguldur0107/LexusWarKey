@@ -69,93 +69,42 @@ public sealed partial class KeyMapRow : ObservableObject
     }
 }
 
-/// <summary>One message line inside a QuickChat slot.</summary>
-public sealed partial class ChatMessageRow : ObservableObject
+/// <summary>One row of the flat QuickChat table: a trigger key and one message. The same key may
+/// appear on several rows — pressing it sends each of those messages in order.</summary>
+public sealed partial class QuickChatEntryRow : ObservableObject
 {
     private readonly Action _onChanged;
-    private readonly Action<ChatMessageRow> _remove;
+    private readonly Action<QuickChatEntryRow> _remove;
+    private readonly Action<QuickChatEntryRow> _beginCapture;
 
-    public ChatMessageRow(string text, Action onChanged, Action<ChatMessageRow> remove)
+    public QuickChatEntryRow(int hotkeyVk, string message, Action onChanged,
+                             Action<QuickChatEntryRow> remove, Action<QuickChatEntryRow> beginCapture)
     {
-        _text = text;
+        _hotkeyVk = hotkeyVk;
+        _message = message;
         _onChanged = onChanged;
         _remove = remove;
-    }
-
-    [ObservableProperty] private string _text;
-
-    partial void OnTextChanged(string value) => _onChanged();
-
-    [RelayCommand] private void Remove() => _remove(this);
-}
-
-public sealed partial class ChatMacroRow : ObservableObject
-{
-    private readonly ChatMacro _model;
-    private readonly Action _onChanged;
-    private readonly Action<ChatMacroRow> _beginCapture;
-    private readonly Action<ChatMacroRow> _remove;
-
-    /// <summary>The messages this key sends, in order. Always at least one editable line.</summary>
-    public ObservableCollection<ChatMessageRow> Lines { get; } = new();
-
-    public ChatMacroRow(string label, ChatMacro model, Action onChanged, Action<ChatMacroRow> beginCapture,
-                        Action<ChatMacroRow> remove)
-    {
-        Label = label;
-        _model = model;
-        _onChanged = onChanged;
         _beginCapture = beginCapture;
-        _remove = remove;
-
-        var seed = model.Messages.Count > 0 ? model.Messages : new List<string> { "" };
-        foreach (var text in seed)
-            Lines.Add(new ChatMessageRow(text, SyncMessages, RemoveLine));
     }
 
-    public ChatMacro Model => _model;
-    public string Label { get; }
-
+    [ObservableProperty] private int _hotkeyVk;
+    [ObservableProperty] private string _message;
     [ObservableProperty] private bool _isCapturing;
 
-    public string HotkeyDisplay => IsCapturing ? "press..." : _model.HotkeyVk == 0 ? "-" : VirtualKeys.NameOf(_model.HotkeyVk);
+    public string HotkeyDisplay => IsCapturing ? "..." : HotkeyVk == 0 ? "-" : VirtualKeys.NameOf(HotkeyVk);
 
+    partial void OnHotkeyVkChanged(int value) => OnPropertyChanged(nameof(HotkeyDisplay));
     partial void OnIsCapturingChanged(bool value) => OnPropertyChanged(nameof(HotkeyDisplay));
-
-    private void SyncMessages()
-    {
-        _model.Messages = Lines.Select(l => l.Text).ToList();
-        _onChanged();
-    }
-
-    private void RemoveLine(ChatMessageRow line)
-    {
-        // Keep at least one box so the row can still be edited; just clear the last one.
-        if (Lines.Count <= 1)
-        {
-            line.Text = "";
-            return;
-        }
-        Lines.Remove(line);
-        SyncMessages();
-    }
-
-    [RelayCommand]
-    private void AddLine()
-    {
-        Lines.Add(new ChatMessageRow("", SyncMessages, RemoveLine));
-        SyncMessages();
-    }
-
-    [RelayCommand] private void CaptureHotkey() => _beginCapture(this);
-    [RelayCommand] private void Remove() => _remove(this);
+    partial void OnMessageChanged(string value) => _onChanged();
 
     public void SetHotkey(int vk)
     {
-        _model.HotkeyVk = vk;
-        OnPropertyChanged(nameof(HotkeyDisplay));
+        HotkeyVk = vk;
         _onChanged();
     }
+
+    [RelayCommand] private void Capture() => _beginCapture(this);
+    [RelayCommand] private void Remove() => _remove(this);
 }
 
 /// <summary>One row of the live skills list: a skill detected on the command card, its default
@@ -256,7 +205,18 @@ public sealed partial class MainViewModel : ObservableObject
     /// <summary>The live list of skills detected in the current match (empty until a hero is up).</summary>
     public ObservableCollection<DetectedSkillRow> DetectedSkills { get; } = new();
     public ObservableCollection<KeyMapRow> InventoryRows { get; }
-    public ObservableCollection<ChatMacroRow> ChatRows { get; } = new();
+    /// <summary>The flat QuickChat table (key + message per row). A key repeated across rows sends all
+    /// of its messages in order.</summary>
+    public ObservableCollection<QuickChatEntryRow> ChatEntries { get; } = new();
+
+    // The "add" bar at the top of the QuickChat tab.
+    [ObservableProperty] private int _newHotkeyVk;
+    [ObservableProperty] private string _newMessage = "";
+    private bool _newHotkeyCapturing;
+
+    public string NewHotkeyDisplay => _newHotkeyCapturing ? "..." : NewHotkeyVk == 0 ? "Товч" : VirtualKeys.NameOf(NewHotkeyVk);
+
+    partial void OnNewHotkeyVkChanged(int value) => OnPropertyChanged(nameof(NewHotkeyDisplay));
 
     [ObservableProperty] private bool _hasDetectedSkills;
     [ObservableProperty] private string _skillsHint = "Start a match and select your hero to see your skills.";
@@ -339,7 +299,7 @@ public sealed partial class MainViewModel : ObservableObject
         _isEnabled = _profile.Enabled;
         InventoryRows = new ObservableCollection<KeyMapRow>(
             _profile.Inventory.Select((m, i) => new KeyMapRow($"{i + 1}", m, Save, BeginKeyCapture)));
-        RebuildChatRows();
+        RebuildChatEntries();
 
         try
         {
@@ -512,7 +472,8 @@ public sealed partial class MainViewModel : ObservableObject
         }
     }
 
-    private void BeginChatCapture(ChatMacroRow row)
+    // Re-capture the hotkey of an existing row.
+    private void BeginChatCapture(QuickChatEntryRow row)
     {
         CancelCapture();
         row.IsCapturing = true;
@@ -531,26 +492,62 @@ public sealed partial class MainViewModel : ObservableObject
         }
     }
 
-    private void RebuildChatRows()
+    // Capture the hotkey for the "add" bar.
+    [RelayCommand]
+    private void CaptureNewHotkey()
     {
-        ChatRows.Clear();
-        for (var i = 0; i < _profile.ChatMacros.Count; i++)
-            ChatRows.Add(new ChatMacroRow($"QuickChat {i + 1}", _profile.ChatMacros[i], Save, BeginChatCapture, RemoveChatMacro));
+        CancelCapture();
+        _newHotkeyCapturing = true;
+        IsCapturing = true;
+        OnPropertyChanged(nameof(NewHotkeyDisplay));
+
+        _capture = new CaptureRequest(
+            vk => { NewHotkeyVk = vk; Clear(); },
+            Clear);
+
+        void Clear()
+        {
+            _newHotkeyCapturing = false;
+            IsCapturing = false;
+            _capture = null;
+            OnPropertyChanged(nameof(NewHotkeyDisplay));
+        }
+    }
+
+    private void RebuildChatEntries()
+    {
+        ChatEntries.Clear();
+        foreach (var macro in _profile.ChatMacros)
+            foreach (var message in macro.Messages)
+                ChatEntries.Add(new QuickChatEntryRow(macro.HotkeyVk, message, SyncChatEntries, RemoveChatEntry, BeginChatCapture));
+    }
+
+    /// <summary>Rebuilds the grouped ChatMacros from the flat table: rows sharing a key become one
+    /// macro whose messages are those rows' messages, in table order.</summary>
+    private void SyncChatEntries()
+    {
+        _profile.ChatMacros = ChatEntries
+            .Where(e => e.HotkeyVk != 0)
+            .GroupBy(e => e.HotkeyVk)
+            .Select(g => new ChatMacro { HotkeyVk = g.Key, Messages = g.Select(e => e.Message).ToList() })
+            .ToList();
+        Save();
     }
 
     [RelayCommand]
-    private void AddChatMacro()
+    private void AddChatEntry()
     {
-        _profile.ChatMacros.Add(new ChatMacro());
-        RebuildChatRows();
-        Save();
+        if (NewHotkeyVk == 0 || string.IsNullOrWhiteSpace(NewMessage))
+            return;
+        ChatEntries.Add(new QuickChatEntryRow(NewHotkeyVk, NewMessage.Trim(), SyncChatEntries, RemoveChatEntry, BeginChatCapture));
+        NewMessage = "";   // keep the key so several messages can be added to it in a row
+        SyncChatEntries();
     }
 
-    private void RemoveChatMacro(ChatMacroRow row)
+    private void RemoveChatEntry(QuickChatEntryRow row)
     {
-        _profile.ChatMacros.Remove(row.Model);
-        RebuildChatRows();
-        Save();
+        ChatEntries.Remove(row);
+        SyncChatEntries();
     }
 
     public bool HandleCaptureKey(int vk)

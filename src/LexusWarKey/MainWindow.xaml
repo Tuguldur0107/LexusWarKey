@@ -328,62 +328,70 @@
                 </TabItem>
 
                 <TabItem Header="QuickChat">
-                    <ScrollViewer VerticalScrollBarVisibility="Auto" Padding="0,0,6,0">
-                        <StackPanel>
-                            <ItemsControl ItemsSource="{Binding ChatRows}">
+                    <DockPanel>
+                        <!-- Add bar: pick a key, type a message, Нэмэх (or Enter). The key stays so you
+                             can add several messages to the same key quickly. -->
+                        <Border DockPanel.Dock="Top" Style="{StaticResource Card}" Padding="10,8" Margin="0,0,0,8">
+                            <Grid>
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="Auto" />
+                                    <ColumnDefinition Width="*" />
+                                    <ColumnDefinition Width="Auto" />
+                                </Grid.ColumnDefinitions>
+                                <Button Grid.Column="0" Style="{StaticResource KeyChip}" Content="{Binding NewHotkeyDisplay}"
+                                        MinWidth="64" Command="{Binding CaptureNewHotkeyCommand}" ToolTip="Товч сонгох" />
+                                <TextBox Grid.Column="1" Margin="8,0" Padding="8,5" FontFamily="Consolas"
+                                         VerticalContentAlignment="Center" MaxLines="1"
+                                         Text="{Binding NewMessage, UpdateSourceTrigger=PropertyChanged}">
+                                    <TextBox.InputBindings>
+                                        <KeyBinding Key="Return" Command="{Binding AddChatEntryCommand}" />
+                                    </TextBox.InputBindings>
+                                </TextBox>
+                                <Button Grid.Column="2" Style="{StaticResource Btn.Accent}" Content="+ Нэмэх"
+                                        Command="{Binding AddChatEntryCommand}" />
+                            </Grid>
+                        </Border>
+
+                        <TextBlock DockPanel.Dock="Top" Style="{StaticResource Dim}" FontSize="11" Margin="2,0,0,6"
+                                   Text="Нэг товчийг олон мессежид ашиглаж болно — дарахад бүгдийг нь дараалан илгээнэ." />
+
+                        <Grid DockPanel.Dock="Top" Margin="8,0,10,4">
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="64" />
+                                <ColumnDefinition Width="*" />
+                                <ColumnDefinition Width="28" />
+                            </Grid.ColumnDefinitions>
+                            <TextBlock Grid.Column="0" Text="Товч" Foreground="{StaticResource B.Dim}" FontSize="10" />
+                            <TextBlock Grid.Column="1" Text="Мессеж" Foreground="{StaticResource B.Dim}" FontSize="10" Margin="8,0,0,0" />
+                        </Grid>
+
+                        <ScrollViewer VerticalScrollBarVisibility="Auto" Padding="0,0,6,0">
+                            <ItemsControl ItemsSource="{Binding ChatEntries}">
                                 <ItemsControl.ItemTemplate>
                                     <DataTemplate>
-                                        <Border Style="{StaticResource Row}" Padding="10,8" Margin="0,0,0,8">
-                                            <StackPanel>
-                                                <Grid Margin="0,0,0,6">
-                                                    <Grid.ColumnDefinitions>
-                                                        <ColumnDefinition Width="Auto" />
-                                                        <ColumnDefinition Width="*" />
-                                                        <ColumnDefinition Width="Auto" />
-                                                    </Grid.ColumnDefinitions>
-                                                    <Button Grid.Column="0" Style="{StaticResource KeyChip}" Content="{Binding HotkeyDisplay}"
-                                                            MinWidth="70"
-                                                            Command="{Binding CaptureHotkeyCommand}"
-                                                            ToolTip="Товч. Дараад, хүссэн товчоо дар. Backspace арилгана." />
-                                                    <TextBlock Grid.Column="1" VerticalAlignment="Center" Margin="10,0,0,0"
-                                                               Foreground="{StaticResource B.Dim}" FontSize="11"
-                                                               Text="дарахад доорх мессежүүдийг дараалан илгээнэ" />
-                                                    <Button Grid.Column="2" Style="{StaticResource Btn.Ghost}" Content="✕" Margin="8,0,0,0"
-                                                            Command="{Binding RemoveCommand}" ToolTip="Энэ QuickChat-г устгах" />
-                                                </Grid>
-
-                                                <ItemsControl ItemsSource="{Binding Lines}">
-                                                    <ItemsControl.ItemTemplate>
-                                                        <DataTemplate>
-                                                            <Grid Margin="0,0,0,4">
-                                                                <Grid.ColumnDefinitions>
-                                                                    <ColumnDefinition Width="*" />
-                                                                    <ColumnDefinition Width="Auto" />
-                                                                </Grid.ColumnDefinitions>
-                                                                <TextBox Grid.Column="0" Text="{Binding Text, UpdateSourceTrigger=PropertyChanged}"
-                                                                         VerticalContentAlignment="Center" MaxLines="1" Padding="8,5"
-                                                                         FontFamily="Consolas" />
-                                                                <Button Grid.Column="1" Style="{StaticResource Btn.Ghost}" Content="✕"
-                                                                        Margin="6,0,0,0" Command="{Binding RemoveCommand}"
-                                                                        ToolTip="Мөр устгах" />
-                                                            </Grid>
-                                                        </DataTemplate>
-                                                    </ItemsControl.ItemTemplate>
-                                                </ItemsControl>
-
-                                                <Button Style="{StaticResource Btn.Ghost}" Content="+ мөр нэмэх" HorizontalAlignment="Left"
-                                                        Margin="0,2,0,0" Command="{Binding AddLineCommand}"
-                                                        ToolTip="Энэ товчинд дахин нэг мессеж нэмэх" />
-                                            </StackPanel>
+                                        <Border Background="#15171B" BorderBrush="#242730" BorderThickness="1"
+                                                CornerRadius="5" Margin="0,0,0,3" Padding="6,2">
+                                            <Grid>
+                                                <Grid.ColumnDefinitions>
+                                                    <ColumnDefinition Width="64" />
+                                                    <ColumnDefinition Width="*" />
+                                                    <ColumnDefinition Width="Auto" />
+                                                </Grid.ColumnDefinitions>
+                                                <Button Grid.Column="0" Style="{StaticResource KeyChip}" Content="{Binding HotkeyDisplay}"
+                                                        Command="{Binding CaptureCommand}" ToolTip="Товч солих" />
+                                                <TextBox Grid.Column="1" Margin="8,0,6,0" Padding="8,4" FontFamily="Consolas"
+                                                         VerticalContentAlignment="Center" MaxLines="1"
+                                                         BorderThickness="0" Background="Transparent"
+                                                         Text="{Binding Message, UpdateSourceTrigger=PropertyChanged}" />
+                                                <Button Grid.Column="2" Style="{StaticResource Btn.Ghost}" Content="✕"
+                                                        Command="{Binding RemoveCommand}" ToolTip="Устгах" />
+                                            </Grid>
                                         </Border>
                                     </DataTemplate>
                                 </ItemsControl.ItemTemplate>
                             </ItemsControl>
-
-                            <Button Style="{StaticResource Btn.Accent}" Content="+ Add QuickChat" HorizontalAlignment="Left"
-                                    Margin="0,4,0,0" Command="{Binding AddChatMacroCommand}" />
-                        </StackPanel>
-                    </ScrollViewer>
+                        </ScrollViewer>
+                    </DockPanel>
                 </TabItem>
             </TabControl>
         </Grid>
