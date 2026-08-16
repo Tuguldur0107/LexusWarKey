@@ -1,58 +1,84 @@
 # Lexus WarKey
 
-Lexus WarKey is a small Warcraft III / Dota 1 skill hotkey remapper.
+A Warcraft III **1.26a** / DotA **LoD** hotkey tool for Windows. It lets you play
+with the keys you want — including changing a skill's in‑game hotkey **mid‑match**,
+without editing game files or injecting a DLL.
 
-It has two jobs:
+> Built with .NET 8 (WPF). Distributed as a single portable `.exe` with built‑in
+> auto‑update.
 
-- **Warkey**: map each skill cell to the key you want to press and the Warcraft letter the skill currently uses.
-- **QuickChat**: configure exactly two one-key chat messages.
+---
 
-There is no inventory binding, mouse binding, profile switching, account system, activation gate, updater, macro editor, scripting, admin flow, anti-cheat bypass, process hiding, or Warcraft file editing.
+## Features
 
-## Workflow
+- **Mid‑match skill hotkeys.** Detects your hero's abilities from the game's
+  command card in memory and writes the letter you chose onto each skill's
+  hotkey cell — live, during the match, re‑applied every game that skill appears.
+  Ideal for DotA LoD where skills are random each game.
+- **Inventory remap.** Map your own keys onto the six item slots (fixed to the
+  numpad hotkeys `7 8 / 4 5 / 1 2`), sent via `SendInput`.
+- **QuickChat.** A dense table of key → message rows. One key can hold several
+  messages; pressing it sends them all in order (e.g. `-clear`, `-ii`, `-hhn`).
+- **In‑game overlay (Ctrl+F6).** Configure skills and inventory without
+  alt‑tabbing; the overlay never steals focus so the game keeps running.
+- **Unique keys.** A physical key is bound in only one place across skills and
+  inventory — claiming it frees it everywhere else.
+- **Discord sign‑in (required).** You log in once with Discord; the token is
+  cached (encrypted per Windows user) so it keeps working, even offline.
+- **Auto‑update.** Checks GitHub on startup, downloads and verifies a newer
+  version (SHA‑256), and installs it on a click.
 
-1. Open Lexus WarKey.
-2. Configure the 8 skill cells:
-   - top key = the key you press
-   - bottom key = the Warcraft skill letter sent to the game
-3. Optionally configure QuickChat 1 and QuickChat 2.
-4. Start Warcraft / Dota 1.
-5. During a game, press **Ctrl + F6** to show the small in-game Warkey window.
-6. Pick a skill cell, press your key, then press the Warcraft letter for that skill.
-7. Press **Ctrl + F6** again or Esc to hide the window and keep playing.
+## Download & install
 
-Settings are saved to:
+1. Go to the [latest release](https://github.com/Tuguldur0107/LexusWarKey/releases/latest).
+2. Download `LexusWarKey.exe` (portable — no installer).
+3. Run it. On first launch, sign in with **Discord**.
+
+> Match the game's integrity level: if you run Warcraft III **as administrator**,
+> run Lexus WarKey as administrator too, or it can't read/write skill memory.
+
+## Usage
+
+### Warkey tab
+- **Inventory** — click a slot, press the key you want to use for that item.
+- **Skills** — once a match starts and your hero is up, your abilities appear
+  with their default letter and a "your key" cell. Click it and press the letter
+  you want; the app writes it onto the skill in‑game.
+
+### QuickChat tab
+- Pick a key, type a message, **+ Нэмэх** (or Enter). Add several messages to the
+  same key to send them in sequence. Edit inline, delete per row.
+
+### In‑game (Ctrl+F6)
+- Press **Ctrl+F6** to open the overlay over Warcraft, pick a skill/item by
+  number, then press the letter/key. Press Ctrl+F6 or Esc to close.
+
+Settings are stored at:
 
 ```text
 %LocalAppData%\LexusWarKey\profile.json
 ```
 
-## Runtime Behavior
+## How it works
 
-- Remapping runs only while Warcraft III is the focused window.
-- One physical key sends one Warcraft key.
-- Key-down and key-up are both remapped, so Warcraft receives a complete keystroke.
-- The hook ignores keys injected by Lexus WarKey, preventing remap loops.
-- Held remap keys remember the exact injected target until key-up, preventing stuck keys if mappings change mid-press.
-- Enter/Esc are never remapped because they control Warcraft chat, and neither can be
-  assigned as a trigger key or a target letter — a cell bound to Enter would look configured
-  and never cast.
-- While Warcraft chat is open, all remaps and QuickChat actions pass through.
-- Closing the main window hides it to the tray so the remapper keeps running.
+- **Skills** are changed by an external memory write to the authoritative hotkey
+  cell (`*(UInode+0x84)`) — no `CustomKeys.txt`, no DLL injection. One‑byte,
+  validated writes only, and only while Warcraft is the focused window.
+- **Inventory and QuickChat** use `SendInput` — your key becomes the game key /
+  chat line.
+- Remapping is suspended while Warcraft's chat line is open, so typing never
+  casts a skill. Keys injected by the app are ignored to avoid loops.
 
-## Manual Warcraft Checklist
+The app reports itself online to the platform backend (username + version) so it
+can be seen in the admin dashboard; it sends no gameplay data.
 
-Test this in a real Warcraft/Dota game before release:
+## Updating
 
-1. `Q -> T` casts a skill whose in-game letter is `T`.
-2. Key-up is released correctly after holding and releasing the remapped key.
-3. Change a skill binding through **Ctrl + F6** while Warcraft is open.
-4. Close the Ctrl+F6 window and confirm Warcraft input continues normally.
-5. Open chat with Enter and type a bound key; it should type the original letter, not cast.
-6. Send/cancel chat with Enter/Esc and confirm remapping resumes.
-7. Trigger QuickChat 1 and QuickChat 2.
-8. Confirm duplicate source keys are reported in the main window.
-9. Restart the app and confirm skill/QuickChat settings persisted.
+- On startup the app checks for a newer release and pre‑downloads it.
+- The update button in the header shows **↻** (check) and turns green **⬇** when
+  a version is staged — click to install and restart.
+- Existing users on a build without the updater must install the new version
+  once by hand; after that, updates apply automatically.
 
 ## Development
 
@@ -60,3 +86,27 @@ Test this in a real Warcraft/Dota game before release:
 dotnet test tests/LexusWarKey.Tests
 dotnet run --project src/LexusWarKey
 ```
+
+Build a portable release exe locally:
+
+```bash
+dotnet publish src/LexusWarKey -c Release -r win-x64 --self-contained true \
+  -p:PublishSingleFile=true -p:IncludeNativeLibrariesForSelfExtract=true
+```
+
+## Releasing
+
+Tag a commit and push the tag — GitHub Actions builds, tests, stamps the version
+from the tag, and publishes `LexusWarKey.exe` + `SHA256.txt` as release assets
+(the updater reads exactly those):
+
+```bash
+git tag v2.3.0
+git push origin v2.3.0
+```
+
+## Notes
+
+- Windows only (WPF). Targets Warcraft III 1.26a.
+- No telemetry beyond the online/version heartbeat. No anti‑cheat bypass, process
+  hiding, or game‑file editing.
