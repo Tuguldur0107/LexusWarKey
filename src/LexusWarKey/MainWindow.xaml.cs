@@ -10,6 +10,7 @@ public partial class MainWindow : Window
     private TrayIcon? _tray;
     private bool _reallyExiting;
     private bool _hintShown;
+    private bool _relogging;
 
     public MainWindow()
     {
@@ -17,6 +18,30 @@ public partial class MainWindow : Window
         PreviewKeyDown += OnPreviewKeyDown;
         SourceInitialized += (_, _) => Windows.WindowChrome.UseDarkTitleBar(this);
         Loaded += (_, _) => _tray = new TrayIcon(this, ExitForReal);
+        if (Vm is { } vm)
+            vm.ReloginRequested += OnReloginRequested;
+    }
+
+    // The token expired or the player logged out: clear it and require Discord sign-in again.
+    // Cancelling the login closes the app, matching the required-login gate at startup.
+    private void OnReloginRequested()
+    {
+        Dispatcher.Invoke(() =>
+        {
+            if (_relogging)
+                return;
+            _relogging = true;
+            App.Auth.ClearToken();
+
+            var login = new Views.LoginWindow(App.Auth);
+            var ok = login.ShowDialog();
+            _relogging = false;
+
+            if (ok == true)
+                Vm?.RefreshAccount();
+            else
+                ExitForReal();
+        });
     }
 
     private MainViewModel? Vm => DataContext as MainViewModel;

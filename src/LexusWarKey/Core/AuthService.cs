@@ -1,0 +1,148 @@
+using System.IO;
+using System.Net;
+using System.Net.Http;
+using System.Net.Http.Headers;
+using System.Security.Cryptography;
+using System.Text;
+using System.Text.Json;
+
+namespace LexusWarKey.Core;
+
+public enum HeartbeatResult { Ok, Unauthorized, Offline }
+
+/// <summary>Discord sign-in for the desktop app. Reuses the platform server's OAuth "poll" flow: the
+/// app opens the browser to the Discord authorize URL with a random session id, then polls the server
+/// until the session yields a JWT. The token is cached (DPAPI-encrypted, per Windows user) so the
+/// player logs in once, and a periodic heartbeat marks them online in the admin dashboard.</summary>
+public sealed class AuthService
+{
+    public const string ServerUrl = "https://mongolian-warcraft-gaming-platform-production.up.railway.app";
+
+    private static readonly HttpClient Http = new() { Timeout = TimeSpan.FromSeconds(15) };
+    private readonly string _tokenPath;
+
+    public string? Token { get; private set; }
+    public string? Username { get; private set; }
+    public string? DiscordId { get; private set; }
+
+    public bool IsLoggedIn => !string.IsNullOrEmpty(Token);
+
+    public AuthService(string? rootOverride = null)
+    {
+        var root = rootOverride ?? Path.Combine(
+            Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "LexusWarKey");
+        try { Directory.CreateDirectory(root); } catch { }
+        _tokenPath = Path.Combine(root, "auth.dat");
+    }
+
+    public void LoadToken()
+    {
+        try
+        {
+            if (!File.Exists(_tokenPath)) return;
+            var enc = File.ReadAllBytes(_tokenPath);
+            var raw = ProtectedData.Unprotect(enc, null, DataProtectionScope.CurrentUser);
+            SetToken(Encoding.UTF8.GetString(raw));
+        }
+        catch { Token = null; }
+    }
+
+    public void SaveToken(string token)
+    {
+        SetToken(token);
+        try
+        {
+            var enc = ProtectedData.Protect(Encoding.UTF8.GetBytes(token), null, DataProtectionScope.CurrentUser);
+            File.WriteAllBytes(_tokenPath, enc);
+        }
+        catch { }
+    }
+
+    public void ClearToken()
+    {
+        Token = null;
+        Username = null;
+        DiscordId = null;
+        try { if (File.Exists(_tokenPath)) File.Delete(_tokenPath); } catch { }
+    }
+
+    private void SetToken(string token)
+    {
+        Token = token;
+        try
+        {
+            var parts = token.Split('.');
+            if (parts.Length < 2)
+                return;
+            using var doc = JsonDocument.Parse(DecodeJwtPart(parts[1]));
+            if (doc.RootElement.TryGetProperty("username", out var u) && u.ValueKind == JsonValueKind.String)
+                Username = u.GetString();
+            if (doc.RootElement.TryGetProperty("discord_id", out var d))
+                DiscordId = d.ValueKind == JsonValueKind.String ? d.GetString() : d.ToString();
+        }
+        catch { /* display fields are best-effort; the token itself is still valid */ }
+    }
+
+    private static string DecodeJwtPart(string part)
+    {
+        var s = part.Replace('-', '+').Replace('_', '/');
+        s += (s.Length % 4) switch { 2 => "==", 3 => "=", _ => "" };
+        return Encoding.UTF8.GetString(Convert.FromBase64String(s));
+    }
+
+    /// <summary>Opens the browser to Discord OAuth and polls for the resulting token. Returns true once
+    /// the token is captured and stored; false on timeout, cancel, or if the browser cannot open.</summary>
+    public async Task<bool> LoginAsync(CancellationToken ct)
+    {
+        var session = Guid.NewGuid().ToString("N");
+        try
+        {
+            System.Diagnostics.Process.Start(new System.Diagnostics.ProcessStartInfo(
+                $"{ServerUrl}/auth/discord?state={session}") { UseShellExecute = true });
+        }
+        catch { return false; }
+
+        // Poll ~3 minutes (the server keeps the pending token for 10).
+        for (var i = 0; i < 90 && !ct.IsCancellationRequested; i++)
+        {
+            await Task.Delay(2000, ct);
+            try
+            {
+                var resp = await Http.GetAsync($"{ServerUrl}/auth/poll/{session}", ct);
+                if (!resp.IsSuccessStatusCode)
+                    continue;
+                using var doc = JsonDocument.Parse(await resp.Content.ReadAsStringAsync(ct));
+                if (doc.RootElement.TryGetProperty("token", out var t) && t.ValueKind == JsonValueKind.String)
+                {
+                    SaveToken(t.GetString()!);
+                    return true;
+                }
+            }
+            catch (OperationCanceledException) { throw; }
+            catch { /* transient; keep polling */ }
+        }
+        return false;
+    }
+
+    /// <summary>Marks the user online and reports the app version. Distinguishes an expired/invalid
+    /// token (needs re-login) from a network failure (stay logged in, try again later).</summary>
+    public async Task<HeartbeatResult> HeartbeatAsync(string version)
+    {
+        if (string.IsNullOrEmpty(Token))
+            return HeartbeatResult.Unauthorized;
+        try
+        {
+            using var req = new HttpRequestMessage(HttpMethod.Post, $"{ServerUrl}/warkey/heartbeat");
+            req.Headers.Authorization = new AuthenticationHeaderValue("Bearer", Token);
+            req.Content = new StringContent(JsonSerializer.Serialize(new { version }), Encoding.UTF8, "application/json");
+            var resp = await Http.SendAsync(req);
+            if (resp.StatusCode is HttpStatusCode.Unauthorized or HttpStatusCode.Forbidden)
+                return HeartbeatResult.Unauthorized;
+            return HeartbeatResult.Ok;
+        }
+        catch
+        {
+            return HeartbeatResult.Offline;
+        }
+    }
+}

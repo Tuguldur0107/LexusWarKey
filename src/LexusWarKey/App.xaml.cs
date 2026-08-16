@@ -1,10 +1,15 @@
 using System.Windows;
+using LexusWarKey.Core;
+using LexusWarKey.Views;
 
 namespace LexusWarKey;
 
 public partial class App : Application
 {
     private Mutex? _singleInstance;
+
+    /// <summary>The signed-in Discord session, shared across the app.</summary>
+    public static AuthService Auth { get; private set; } = null!;
 
     protected override void OnStartup(StartupEventArgs e)
     {
@@ -25,6 +30,26 @@ public partial class App : Application
         }
 
         base.OnStartup(e);
+
+        // Discord login is required to use the app. A cached token lets the player back in
+        // without re-authenticating (and keeps working offline); only a missing token forces
+        // the login window. An expired token is caught later by the heartbeat.
+        Auth = new AuthService();
+        Auth.LoadToken();
+
+        if (!Auth.IsLoggedIn)
+        {
+            var login = new LoginWindow(Auth);
+            if (login.ShowDialog() != true)
+            {
+                Shutdown();
+                return;
+            }
+        }
+
+        var main = new MainWindow();
+        MainWindow = main;
+        main.Show();
     }
 
     protected override void OnExit(ExitEventArgs e)

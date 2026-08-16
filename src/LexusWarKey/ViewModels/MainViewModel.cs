@@ -217,6 +217,19 @@ public sealed partial class MainViewModel : ObservableObject
     [ObservableProperty] private bool _hasDetectedSkills;
     [ObservableProperty] private string _skillsHint = "Start a match and select your hero to see your skills.";
 
+    /// <summary>The signed-in Discord name, shown in the header.</summary>
+    [ObservableProperty] private string _accountName = "";
+
+    public bool HasAccount => !string.IsNullOrEmpty(AccountName);
+
+    partial void OnAccountNameChanged(string value) => OnPropertyChanged(nameof(HasAccount));
+
+    private System.Windows.Threading.DispatcherTimer? _heartbeatTimer;
+
+    /// <summary>Raised when the session must be re-established: the stored token expired (the heartbeat
+    /// came back unauthorized) or the player pressed log out. The window handles it by showing login.</summary>
+    public event Action? ReloginRequested;
+
     public string VersionText
     {
         get
@@ -290,9 +303,37 @@ public sealed partial class MainViewModel : ObservableObject
             _autoTimer.Start();
         }
 
+        AccountName = App.Auth?.Username ?? "";
+        _heartbeatTimer = new System.Windows.Threading.DispatcherTimer { Interval = TimeSpan.FromSeconds(60) };
+        _heartbeatTimer.Tick += (_, _) => _ = SendHeartbeatAsync();
+        _heartbeatTimer.Start();
+        _ = SendHeartbeatAsync();   // mark online right away
+
         Save();
         RefreshStatus();
         RefreshConflicts();
+    }
+
+    /// <summary>Reports the app as online to the server. An unauthorized reply means the token is no
+    /// longer valid, so we ask the window to re-login; a network error is ignored (offline grace).</summary>
+    private async Task SendHeartbeatAsync()
+    {
+        if (App.Auth is not { } auth)
+            return;
+        var version = VersionText.TrimStart('v');
+        var result = await auth.HeartbeatAsync(version);
+        if (result == Core.HeartbeatResult.Unauthorized)
+            Application.Current?.Dispatcher.BeginInvoke(new Action(() => ReloginRequested?.Invoke()));
+    }
+
+    /// <summary>Re-reads the signed-in name after a login/re-login.</summary>
+    public void RefreshAccount() => AccountName = App.Auth?.Username ?? "";
+
+    [RelayCommand]
+    private void Logout()
+    {
+        App.Auth?.ClearToken();
+        ReloginRequested?.Invoke();
     }
 
     partial void OnIsEnabledChanged(bool value)
@@ -741,6 +782,7 @@ public sealed partial class MainViewModel : ObservableObject
     {
         _statusTimer.Stop();
         _autoTimer?.Stop();
+        _heartbeatTimer?.Stop();
         _overlay?.Close();
         _hook.Dispose();
         Save();
