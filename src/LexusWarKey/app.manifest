@@ -2,15 +2,16 @@
 <assembly manifestVersion="1.0" xmlns="urn:schemas-microsoft-com:asm.v1">
   <assemblyIdentity version="1.0.0.0" name="LexusWarKey"/>
 
-  <!-- Runs at the invoker's level. This MUST match Warcraft's integrity: keystroke injection
-       (inventory, QuickChat) is blocked between mismatched levels, so an elevated app cannot send
-       keys to a normal-launched war3. Run the game normally -> run this normally. Run the game
-       elevated (e.g. via an elevated GameRanger) -> run this as administrator too. Memory access for
-       the skill layer works whenever the two match (same user, same integrity). -->
+  <!-- Always run elevated. Reading/writing Warcraft's memory (the skill layer) needs the app to be
+       at least Warcraft's integrity level, and WC3 1.26a on modern Windows is commonly launched
+       elevated (compatibility, GameRanger). Self-elevating means a single UAC prompt on launch instead
+       of the player having to right-click -> Run as administrator every time. A higher-integrity app
+       can still read/write and send input to a normal-launched war3 (the restriction is the other way
+       round), so this works whether the game is elevated or not. -->
   <trustInfo xmlns="urn:schemas-microsoft-com:asm.v2">
     <security>
       <requestedPrivileges xmlns="urn:schemas-microsoft-com:asm.v3">
-        <requestedExecutionLevel level="asInvoker" uiAccess="false" />
+        <requestedExecutionLevel level="requireAdministrator" uiAccess="false" />
       </requestedPrivileges>
     </security>
   </trustInfo>
