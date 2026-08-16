@@ -161,9 +161,32 @@
                     </Button>
 
                     <!-- Open the in-game skill/inventory overlay (same as Ctrl+F6). -->
-                    <Button Style="{StaticResource Btn.Ghost}" Command="{Binding ToggleOverlayCommand}"
-                            Margin="16,0,0,0" VerticalAlignment="Center" Content="▣ Overlay (Ctrl+F6)"
-                            ToolTip="Тоглоом дээрх тохиргооны цонх (Ctrl+F6)" />
+                    <Button Command="{Binding ToggleOverlayCommand}" Cursor="Hand" Margin="16,0,0,0"
+                            VerticalAlignment="Center" ToolTip="Тоглоом дээрх тохиргооны цонх">
+                        <Button.Template>
+                            <ControlTemplate TargetType="Button">
+                                <Border x:Name="ob" CornerRadius="8" Padding="11,6" BorderThickness="1"
+                                        Background="#141E30" BorderBrush="#294066">
+                                    <StackPanel Orientation="Horizontal">
+                                        <TextBlock Text="&#x25A3;" FontSize="13" VerticalAlignment="Center"
+                                                   Foreground="{StaticResource B.Blue}" />
+                                        <TextBlock Text="Overlay" FontSize="12" FontWeight="SemiBold" Margin="7,0,0,0"
+                                                   VerticalAlignment="Center" Foreground="{StaticResource B.Text}" />
+                                        <Border Background="#1E2A40" CornerRadius="4" Padding="5,1" Margin="8,0,0,0"
+                                                VerticalAlignment="Center">
+                                            <TextBlock Text="Ctrl+F6" FontSize="9.5" Foreground="{StaticResource B.Dim}" />
+                                        </Border>
+                                    </StackPanel>
+                                </Border>
+                                <ControlTemplate.Triggers>
+                                    <Trigger Property="IsMouseOver" Value="True">
+                                        <Setter TargetName="ob" Property="Background" Value="#1C3055" />
+                                        <Setter TargetName="ob" Property="BorderBrush" Value="{StaticResource B.Blue}" />
+                                    </Trigger>
+                                </ControlTemplate.Triggers>
+                            </ControlTemplate>
+                        </Button.Template>
+                    </Button>
                 </StackPanel>
 
                 <StackPanel Grid.Column="1" Orientation="Horizontal" VerticalAlignment="Center">
@@ -394,24 +417,45 @@
                             <ItemsControl ItemsSource="{Binding ChatEntries}">
                                 <ItemsControl.ItemTemplate>
                                     <DataTemplate>
-                                        <Border Background="#15171B" BorderBrush="#242730" BorderThickness="1"
-                                                CornerRadius="5" Margin="0,0,0,3" Padding="6,2">
+                                        <Border x:Name="row" Background="#13161B" BorderBrush="#232732" BorderThickness="1"
+                                                CornerRadius="7" Margin="0,0,0,4">
                                             <Grid>
                                                 <Grid.ColumnDefinitions>
+                                                    <ColumnDefinition Width="4" />
                                                     <ColumnDefinition Width="72" />
                                                     <ColumnDefinition Width="*" />
                                                     <ColumnDefinition Width="Auto" />
                                                 </Grid.ColumnDefinitions>
-                                                <Button Grid.Column="0" Style="{StaticResource KeyCell}" Content="{Binding HotkeyDisplay}"
+
+                                                <!-- Left accent bar (lights up on hover) -->
+                                                <Border x:Name="accent" Grid.Column="0" Background="Transparent"
+                                                        CornerRadius="7,0,0,7" />
+
+                                                <Button Grid.Column="1" Style="{StaticResource KeyCell}" Margin="6,3"
+                                                        Content="{Binding HotkeyDisplay}"
                                                         Command="{Binding CaptureCommand}" ToolTip="Товч солих" />
-                                                <TextBox Grid.Column="1" Margin="8,0,6,0" Padding="8,4" FontFamily="Consolas"
+                                                <TextBox x:Name="msg" Grid.Column="2" Margin="6,0,6,0" Padding="8,6"
+                                                         FontFamily="Consolas" FontSize="13"
                                                          VerticalContentAlignment="Center" MaxLines="1"
                                                          BorderThickness="0" Background="Transparent"
                                                          Text="{Binding Message, UpdateSourceTrigger=PropertyChanged}" />
-                                                <Button Grid.Column="2" Style="{StaticResource Btn.Ghost}" Content="✕"
+                                                <Button x:Name="del" Grid.Column="3" Style="{StaticResource CaptionButton}"
+                                                        Content="&#x2715;" Opacity="0.28" Margin="0,0,4,0"
                                                         Command="{Binding RemoveCommand}" ToolTip="Устгах" />
                                             </Grid>
                                         </Border>
+                                        <DataTemplate.Triggers>
+                                            <Trigger SourceName="row" Property="IsMouseOver" Value="True">
+                                                <Setter TargetName="row" Property="Background" Value="#191D25" />
+                                                <Setter TargetName="row" Property="BorderBrush" Value="#33405A" />
+                                                <Setter TargetName="accent" Property="Background" Value="{StaticResource B.Blue}" />
+                                                <Setter TargetName="del" Property="Opacity" Value="1" />
+                                            </Trigger>
+                                            <Trigger SourceName="msg" Property="IsFocused" Value="True">
+                                                <Setter TargetName="accent" Property="Background" Value="{StaticResource B.Blue}" />
+                                                <Setter TargetName="row" Property="BorderBrush" Value="{StaticResource B.Blue}" />
+                                            </Trigger>
+                                        </DataTemplate.Triggers>
                                     </DataTemplate>
                                 </ItemsControl.ItemTemplate>
                             </ItemsControl>
