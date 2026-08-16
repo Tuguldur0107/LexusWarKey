@@ -92,51 +92,47 @@
                 </Grid.ColumnDefinitions>
 
                 <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
-                    <Image Source="/Assets/app.ico" Width="38" Height="38" VerticalAlignment="Center"
-                           RenderOptions.BitmapScalingMode="HighQuality" Margin="0,0,12,0" />
-                    <StackPanel VerticalAlignment="Center">
-                        <StackPanel Orientation="Horizontal">
-                            <TextBlock Style="{StaticResource H1}">
-                                <Run Text="Lexus" Foreground="{StaticResource B.Blue}" /><Run Text=" WarKey" />
-                            </TextBlock>
-                            <TextBlock Text="{Binding VersionText}" Foreground="{StaticResource B.Dim}" FontSize="12"
-                                       VerticalAlignment="Bottom" Margin="8,0,0,4" />
+                    <TextBlock Text="{Binding VersionText}" Foreground="{StaticResource B.Dim}" FontSize="13"
+                               VerticalAlignment="Center" />
 
-                            <!-- Update: auto-checks on startup; click to check now, or restart into a
-                                 downloaded version (turns green when one is ready). -->
-                            <Button Command="{Binding UpdateCommand}" Cursor="Hand" Background="Transparent"
-                                    BorderThickness="0" Padding="0" Margin="12,0,0,3" VerticalAlignment="Bottom"
-                                    ToolTip="Шинэчлэлт шалгах / суулгах">
-                                <StackPanel Orientation="Horizontal">
-                                    <TextBlock Text="{Binding UpdateGlyph}" FontSize="14" VerticalAlignment="Center">
-                                        <TextBlock.Style>
-                                            <Style TargetType="TextBlock">
-                                                <Setter Property="Foreground" Value="{StaticResource B.Dim}" />
-                                                <Style.Triggers>
-                                                    <DataTrigger Binding="{Binding UpdateReady}" Value="True">
-                                                        <Setter Property="Foreground" Value="{StaticResource B.Ok}" />
-                                                    </DataTrigger>
-                                                </Style.Triggers>
-                                            </Style>
-                                        </TextBlock.Style>
-                                    </TextBlock>
-                                    <TextBlock Text="{Binding UpdateStatus}" FontSize="11" VerticalAlignment="Center"
-                                               Margin="6,0,0,0">
-                                        <TextBlock.Style>
-                                            <Style TargetType="TextBlock">
-                                                <Setter Property="Foreground" Value="{StaticResource B.Dim}" />
-                                                <Style.Triggers>
-                                                    <DataTrigger Binding="{Binding UpdateReady}" Value="True">
-                                                        <Setter Property="Foreground" Value="{StaticResource B.Ok}" />
-                                                    </DataTrigger>
-                                                </Style.Triggers>
-                                            </Style>
-                                        </TextBlock.Style>
-                                    </TextBlock>
-                                </StackPanel>
-                            </Button>
+                    <!-- Update: auto-checks on startup; click to check now, or restart into a
+                         downloaded version (turns green when one is ready). -->
+                    <Button Command="{Binding UpdateCommand}" Cursor="Hand" Background="Transparent"
+                            BorderThickness="0" Padding="0" Margin="12,0,0,0" VerticalAlignment="Center"
+                            ToolTip="Шинэчлэлт шалгах / суулгах">
+                        <StackPanel Orientation="Horizontal">
+                            <TextBlock Text="{Binding UpdateGlyph}" FontSize="14" VerticalAlignment="Center">
+                                <TextBlock.Style>
+                                    <Style TargetType="TextBlock">
+                                        <Setter Property="Foreground" Value="{StaticResource B.Dim}" />
+                                        <Style.Triggers>
+                                            <DataTrigger Binding="{Binding UpdateReady}" Value="True">
+                                                <Setter Property="Foreground" Value="{StaticResource B.Ok}" />
+                                            </DataTrigger>
+                                        </Style.Triggers>
+                                    </Style>
+                                </TextBlock.Style>
+                            </TextBlock>
+                            <TextBlock Text="{Binding UpdateStatus}" FontSize="11" VerticalAlignment="Center"
+                                       Margin="6,0,0,0">
+                                <TextBlock.Style>
+                                    <Style TargetType="TextBlock">
+                                        <Setter Property="Foreground" Value="{StaticResource B.Dim}" />
+                                        <Style.Triggers>
+                                            <DataTrigger Binding="{Binding UpdateReady}" Value="True">
+                                                <Setter Property="Foreground" Value="{StaticResource B.Ok}" />
+                                            </DataTrigger>
+                                        </Style.Triggers>
+                                    </Style>
+                                </TextBlock.Style>
+                            </TextBlock>
                         </StackPanel>
-                    </StackPanel>
+                    </Button>
+
+                    <!-- Open the in-game skill/inventory overlay (same as Ctrl+F6). -->
+                    <Button Style="{StaticResource Btn.Ghost}" Command="{Binding ToggleOverlayCommand}"
+                            Margin="16,0,0,0" VerticalAlignment="Center" Content="▣ Overlay (Ctrl+F6)"
+                            ToolTip="Тоглоом дээрх тохиргооны цонх (Ctrl+F6)" />
                 </StackPanel>
 
                 <StackPanel Grid.Column="1" Orientation="Horizontal" VerticalAlignment="Center">
@@ -150,9 +146,9 @@
                         <TextBlock Text="{Binding AccountName}" Foreground="{StaticResource B.Text}" FontSize="12"
                                    FontWeight="SemiBold" VerticalAlignment="Center" Margin="8,0,0,0"
                                    MaxWidth="140" TextTrimming="CharacterEllipsis" />
-                        <Button Content="Гарах" Command="{Binding LogoutCommand}" Cursor="Hand"
+                        <Button Content="⏻" Command="{Binding LogoutCommand}" Cursor="Hand"
                                 Background="Transparent" BorderThickness="0" Foreground="{StaticResource B.Dim}"
-                                FontSize="11" Margin="10,0,0,0" Padding="4,0,0,0" VerticalAlignment="Center"
+                                FontSize="15" Margin="10,0,0,0" Padding="2,0,0,0" VerticalAlignment="Center"
                                 ToolTip="Discord-оос гарах" />
                     </StackPanel>
                 </Border>

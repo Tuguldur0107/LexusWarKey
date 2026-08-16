@@ -578,6 +578,7 @@ public sealed partial class MainViewModel : ObservableObject
 
     public void CancelCapture() => _capture?.Cancel();
 
+    [RelayCommand]
     private void ToggleOverlay()
     {
         if (_overlay is { IsVisible: true })
