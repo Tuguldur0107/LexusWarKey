@@ -39,12 +39,17 @@ public partial class App : Application
 
         if (!Auth.IsLoggedIn)
         {
+            // No main window exists yet, so WPF would treat the login window as the app's MainWindow
+            // and, under OnMainWindowClose, shut the whole app down the moment login succeeds and it
+            // closes. Hold shutdown until the real window is up, then restore the normal mode.
+            ShutdownMode = ShutdownMode.OnExplicitShutdown;
             var login = new LoginWindow(Auth);
             if (login.ShowDialog() != true)
             {
                 Shutdown();
                 return;
             }
+            ShutdownMode = ShutdownMode.OnMainWindowClose;
         }
 
         var main = new MainWindow();
