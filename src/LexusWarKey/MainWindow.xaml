@@ -347,10 +347,7 @@
                             </Grid>
                         </Border>
 
-                        <TextBlock DockPanel.Dock="Top" Style="{StaticResource Dim}" FontSize="11" Margin="2,0,0,6"
-                                   Text="Нэг товчийг олон мессежид ашиглаж болно — дарахад бүгдийг нь дараалан илгээнэ." />
-
-                        <Grid DockPanel.Dock="Top" Margin="8,0,10,4">
+                        <Grid DockPanel.Dock="Top" Margin="8,6,10,4">
                             <Grid.ColumnDefinitions>
                                 <ColumnDefinition Width="72" />
                                 <ColumnDefinition Width="*" />
