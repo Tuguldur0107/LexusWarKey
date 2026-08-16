@@ -4,7 +4,7 @@
         xmlns:vm="clr-namespace:LexusWarKey.ViewModels"
         Title="Lexus WarKey" Width="600" Height="520" ResizeMode="CanMinimize"
         WindowStartupLocation="CenterScreen"
-        Background="{StaticResource B.Bg}"
+        WindowStyle="None" AllowsTransparency="True" Background="Transparent"
         FontFamily="Segoe UI Variable Text, Segoe UI"
         UseLayoutRounding="True" TextOptions.TextFormattingMode="Display">
     <Window.DataContext>
@@ -90,7 +90,7 @@
         </EventTrigger>
     </Window.Triggers>
 
-    <Border BorderThickness="2" Background="{StaticResource B.Bg}">
+    <Border BorderThickness="2" CornerRadius="11" Background="#DE0B0C10">
         <Border.BorderBrush>
             <LinearGradientBrush StartPoint="0,0" EndPoint="1,1">
                 <LinearGradientBrush.RelativeTransform>
@@ -105,13 +105,17 @@
                 <GradientStop Color="#FF3B3B" Offset="1.0" />
             </LinearGradientBrush>
         </Border.BorderBrush>
+        <!-- Fixed-size window, so a fixed rounded clip trims the content to the frame's corners. -->
+        <Border.Clip>
+            <RectangleGeometry Rect="0,0,600,520" RadiusX="11" RadiusY="11" />
+        </Border.Clip>
     <Grid>
         <Grid.RowDefinitions>
             <RowDefinition Height="Auto" />
             <RowDefinition Height="*" />
         </Grid.RowDefinitions>
 
-        <Border Grid.Row="0" Background="{StaticResource B.Panel}" Padding="22,16">
+        <Border Grid.Row="0" Background="#B00C0D11" Padding="22,14" MouseLeftButtonDown="Header_MouseDown">
             <Grid>
                 <Grid.ColumnDefinitions>
                     <ColumnDefinition Width="*" />
@@ -212,6 +216,12 @@
                                    TextTrimming="CharacterEllipsis" />
                     </StackPanel>
                 </Border>
+
+                <!-- Custom window caption (the OS title bar is hidden). -->
+                <Button Style="{StaticResource CaptionButton}" Content="&#x2013;" Margin="14,0,0,0"
+                        Click="Minimize_Click" ToolTip="Багасгах" />
+                <Button Style="{StaticResource CaptionClose}" Content="&#x2715;" Margin="2,0,0,0"
+                        Click="Close_Click" ToolTip="Хаах (tray руу)" />
                 </StackPanel>
             </Grid>
         </Border>

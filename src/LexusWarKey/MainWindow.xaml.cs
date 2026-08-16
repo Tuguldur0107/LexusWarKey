@@ -16,7 +16,6 @@ public partial class MainWindow : Window
     {
         InitializeComponent();
         PreviewKeyDown += OnPreviewKeyDown;
-        SourceInitialized += (_, _) => Windows.WindowChrome.UseDarkTitleBar(this);
         Loaded += (_, _) => _tray = new TrayIcon(this, ExitForReal);
         if (Vm is { } vm)
         {
@@ -66,6 +65,18 @@ public partial class MainWindow : Window
     }
 
     private MainViewModel? Vm => DataContext as MainViewModel;
+
+    // The OS title bar is hidden (WindowStyle=None), so the header doubles as the drag area.
+    private void Header_MouseDown(object sender, MouseButtonEventArgs e)
+    {
+        if (e.ChangedButton == MouseButton.Left)
+            DragMove();
+    }
+
+    private void Minimize_Click(object sender, RoutedEventArgs e) => WindowState = WindowState.Minimized;
+
+    // Matches the old close button: hide to the tray (the app keeps remapping).
+    private void Close_Click(object sender, RoutedEventArgs e) => Close();
 
     private void OnPreviewKeyDown(object sender, KeyEventArgs e)
     {
