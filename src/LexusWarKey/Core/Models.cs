@@ -126,6 +126,36 @@ public sealed class WarKeyProfile
 
     public void ClearSkillLetter(string abilityId) => SkillLetters.Remove(abilityId);
 
+    /// <summary>Assigns a letter to a whole multi-icon skill family (all the ability ids that are the
+    /// same skill). The key is freed from inventory and any OTHER skill first — but not from the family
+    /// itself, so all its states end up on the letter together.</summary>
+    public void SetSkillLetterFamily(IReadOnlyCollection<string> ids, string letter)
+    {
+        if (ids.Count == 0)
+            return;
+        if (letter.Length == 1)
+        {
+            var vk = char.ToUpperInvariant(letter[0]);
+            foreach (var id in SkillLetters
+                         .Where(kv => !ids.Contains(kv.Key) && string.Equals(kv.Value, letter, StringComparison.OrdinalIgnoreCase))
+                         .Select(kv => kv.Key).ToList())
+                SkillLetters.Remove(id);
+            foreach (var slot in Inventory.Where(m => m.FromVk == vk))
+            {
+                slot.FromVk = 0;
+                slot.Enabled = false;
+            }
+        }
+        foreach (var id in ids)
+            SkillLetters[id] = letter;
+    }
+
+    public void ClearSkillLetterFamily(IEnumerable<string> ids)
+    {
+        foreach (var id in ids)
+            SkillLetters.Remove(id);
+    }
+
     /// <summary>Binds a trigger key to an inventory slot, keeping it unique across inventory AND
     /// skills (the same physical key can't cast a skill and use an item at once).</summary>
     public void SetInventoryKey(int slotIndex, int vk)

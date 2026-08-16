@@ -17,10 +17,28 @@ public sealed record AbilityInfo(string Id, char Letter, string Name, int Col = 
 public sealed class AbilityData
 {
     private readonly IReadOnlyDictionary<string, AbilityInfo> _byId;
+    private readonly ILookup<string, string> _idsByName;
 
-    private AbilityData(IReadOnlyDictionary<string, AbilityInfo> byId) => _byId = byId;
+    private AbilityData(IReadOnlyDictionary<string, AbilityInfo> byId)
+    {
+        _byId = byId;
+        // Group ids by ability name so a multi-icon skill (e.g. Pulse Nova's activate/deactivate, or a
+        // morph's forms) — separate rawcodes sharing one name — can be treated as one skill.
+        _idsByName = byId.Values.ToLookup(a => a.Name, a => a.Id, StringComparer.Ordinal);
+    }
 
     public IReadOnlyDictionary<string, AbilityInfo> ById => _byId;
+
+    /// <summary>Every ability id that shares <paramref name="id"/>'s name (including itself). For a
+    /// single-icon skill this is just the id; for a multi-icon one it is all of its states, so a hotkey
+    /// letter set on the visible icon applies to the others when they take the slot.</summary>
+    public IReadOnlyList<string> IdsWithSameName(string id)
+    {
+        if (!_byId.TryGetValue(id, out var a))
+            return new[] { id };
+        var family = _idsByName[a.Name].ToList();
+        return family.Count > 0 ? family : new[] { id };
+    }
 
     /// <summary>Abilities whose name contains <paramref name="term"/> (case-insensitive), or the
     /// single ability whose id is exactly <paramref name="term"/>. Only abilities with a real

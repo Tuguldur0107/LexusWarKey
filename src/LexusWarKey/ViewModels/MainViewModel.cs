@@ -297,7 +297,8 @@ public sealed partial class MainViewModel : ObservableObject
         _overlaySession = new OverlayConfigSession(
             _profile,
             () => DetectedSkills.Select(r => new OverlaySkill(r.Id, r.Name, r.Default.Length > 0 ? r.Default[0] : '?')).ToList(),
-            Save);
+            Save,
+            Family);
 
         _isEnabled = _profile.Enabled;
         InventoryRows = new ObservableCollection<KeyMapRow>(
@@ -775,6 +776,10 @@ public sealed partial class MainViewModel : ObservableObject
             RenderOverlay();
     }
 
+    /// <summary>All ability ids that are the same skill as <paramref name="id"/> (multi-icon states),
+    /// so a hotkey letter set on the visible icon applies to every state.</summary>
+    private IReadOnlyList<string> Family(string id) => _abilities?.IdsWithSameName(id) ?? new[] { id };
+
     private void BeginSkillCapture(DetectedSkillRow row)
     {
         CancelCapture();
@@ -786,11 +791,11 @@ public sealed partial class MainViewModel : ObservableObject
             {
                 if (vk == 0)   // Backspace: clear the assignment
                 {
-                    _profile.ClearSkillLetter(row.Id);
+                    _profile.ClearSkillLetterFamily(Family(row.Id));
                 }
                 else if (vk is >= 'A' and <= 'Z')
                 {
-                    _profile.SetSkillLetter(row.Id, ((char)vk).ToString());
+                    _profile.SetSkillLetterFamily(Family(row.Id), ((char)vk).ToString());
                 }
                 Clear();
             },

@@ -22,12 +22,15 @@ public sealed class OverlayConfigSession
     private readonly WarKeyProfile _profile;
     private readonly Func<IReadOnlyList<OverlaySkill>> _detected;
     private readonly Action _onChanged;
+    private readonly Func<string, IReadOnlyList<string>> _family;
 
-    public OverlayConfigSession(WarKeyProfile profile, Func<IReadOnlyList<OverlaySkill>> detected, Action onChanged)
+    public OverlayConfigSession(WarKeyProfile profile, Func<IReadOnlyList<OverlaySkill>> detected, Action onChanged,
+                                Func<string, IReadOnlyList<string>>? family = null)
     {
         _profile = profile;
         _detected = detected;
         _onChanged = onChanged;
+        _family = family ?? (id => new[] { id });
     }
 
     public OverlayStep Step { get; private set; } = OverlayStep.ChoosingTarget;
@@ -129,14 +132,14 @@ public sealed class OverlayConfigSession
         var id = skills[SelectedIndex].Id;
         if (vk == VirtualKeys.Back)
         {
-            _profile.ClearSkillLetter(id);
+            _profile.ClearSkillLetterFamily(_family(id));
             Reset();
             _onChanged();
             return true;
         }
         if (vk is >= 'A' and <= 'Z')
         {
-            _profile.SetSkillLetter(id, ((char)vk).ToString());
+            _profile.SetSkillLetterFamily(_family(id), ((char)vk).ToString());
             Reset();
             _onChanged();
             return true;
