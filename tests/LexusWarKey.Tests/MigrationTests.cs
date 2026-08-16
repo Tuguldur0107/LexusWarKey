@@ -58,16 +58,17 @@ public class MigrationTests
     }
 
     [Fact]
-    public void Multi_line_quickchat_macro_keeps_only_its_first_message()
+    public void Multi_line_quickchat_macro_keeps_every_message()
     {
         var profile = new WarKeyProfile();
-        profile.ChatMacros.Add(new ChatMacro { HotkeyVk = VirtualKeys.F5, Messages = { "-clear", "-ii" } });
+        profile.ChatMacros.Add(new ChatMacro { HotkeyVk = VirtualKeys.F5, Messages = { "-clear", " ", "-ii" } });
 
         profile.NormaliseSlots();
 
         Assert.Single(profile.ChatMacros);
-        Assert.Equal("-clear", profile.ChatMacros[0].Message);
-        Assert.Single(profile.ChatMacros[0].Messages);
+        // One key holds several messages; blank lines are dropped but the rest are kept in order.
+        Assert.Equal(new[] { "-clear", "-ii" }, profile.ChatMacros[0].Messages);
+        Assert.Equal(new[] { "-clear", "-ii" }, profile.ChatMacros[0].UsableMessages);
     }
 
     [Fact]

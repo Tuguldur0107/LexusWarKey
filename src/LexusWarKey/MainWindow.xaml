@@ -101,6 +101,40 @@
                             </TextBlock>
                             <TextBlock Text="{Binding VersionText}" Foreground="{StaticResource B.Dim}" FontSize="12"
                                        VerticalAlignment="Bottom" Margin="8,0,0,4" />
+
+                            <!-- Update: auto-checks on startup; click to check now, or restart into a
+                                 downloaded version (turns green when one is ready). -->
+                            <Button Command="{Binding UpdateCommand}" Cursor="Hand" Background="Transparent"
+                                    BorderThickness="0" Padding="0" Margin="12,0,0,3" VerticalAlignment="Bottom"
+                                    ToolTip="Шинэчлэлт шалгах / суулгах">
+                                <StackPanel Orientation="Horizontal">
+                                    <TextBlock Text="{Binding UpdateGlyph}" FontSize="14" VerticalAlignment="Center">
+                                        <TextBlock.Style>
+                                            <Style TargetType="TextBlock">
+                                                <Setter Property="Foreground" Value="{StaticResource B.Dim}" />
+                                                <Style.Triggers>
+                                                    <DataTrigger Binding="{Binding UpdateReady}" Value="True">
+                                                        <Setter Property="Foreground" Value="{StaticResource B.Ok}" />
+                                                    </DataTrigger>
+                                                </Style.Triggers>
+                                            </Style>
+                                        </TextBlock.Style>
+                                    </TextBlock>
+                                    <TextBlock Text="{Binding UpdateStatus}" FontSize="11" VerticalAlignment="Center"
+                                               Margin="6,0,0,0">
+                                        <TextBlock.Style>
+                                            <Style TargetType="TextBlock">
+                                                <Setter Property="Foreground" Value="{StaticResource B.Dim}" />
+                                                <Style.Triggers>
+                                                    <DataTrigger Binding="{Binding UpdateReady}" Value="True">
+                                                        <Setter Property="Foreground" Value="{StaticResource B.Ok}" />
+                                                    </DataTrigger>
+                                                </Style.Triggers>
+                                            </Style>
+                                        </TextBlock.Style>
+                                    </TextBlock>
+                                </StackPanel>
+                            </Button>
                         </StackPanel>
                     </StackPanel>
                 </StackPanel>
@@ -299,24 +333,48 @@
                             <ItemsControl ItemsSource="{Binding ChatRows}">
                                 <ItemsControl.ItemTemplate>
                                     <DataTemplate>
-                                        <Border Style="{StaticResource Row}" Padding="10,5" Margin="0,0,0,5">
-                                            <Grid>
-                                                <Grid.ColumnDefinitions>
-                                                    <ColumnDefinition Width="Auto" />
-                                                    <ColumnDefinition Width="*" />
-                                                    <ColumnDefinition Width="Auto" />
-                                                </Grid.ColumnDefinitions>
+                                        <Border Style="{StaticResource Row}" Padding="10,8" Margin="0,0,0,8">
+                                            <StackPanel>
+                                                <Grid Margin="0,0,0,6">
+                                                    <Grid.ColumnDefinitions>
+                                                        <ColumnDefinition Width="Auto" />
+                                                        <ColumnDefinition Width="*" />
+                                                        <ColumnDefinition Width="Auto" />
+                                                    </Grid.ColumnDefinitions>
+                                                    <Button Grid.Column="0" Style="{StaticResource KeyChip}" Content="{Binding HotkeyDisplay}"
+                                                            MinWidth="70"
+                                                            Command="{Binding CaptureHotkeyCommand}"
+                                                            ToolTip="Товч. Дараад, хүссэн товчоо дар. Backspace арилгана." />
+                                                    <TextBlock Grid.Column="1" VerticalAlignment="Center" Margin="10,0,0,0"
+                                                               Foreground="{StaticResource B.Dim}" FontSize="11"
+                                                               Text="дарахад доорх мессежүүдийг дараалан илгээнэ" />
+                                                    <Button Grid.Column="2" Style="{StaticResource Btn.Ghost}" Content="✕" Margin="8,0,0,0"
+                                                            Command="{Binding RemoveCommand}" ToolTip="Энэ QuickChat-г устгах" />
+                                                </Grid>
 
-                                                <Button Grid.Column="0" Style="{StaticResource KeyChip}" Content="{Binding HotkeyDisplay}"
-                                                        MinWidth="70" Margin="0,0,10,0"
-                                                        Command="{Binding CaptureHotkeyCommand}"
-                                                        ToolTip="Trigger key. Click, then press the key. Backspace clears." />
-                                                <TextBox Grid.Column="1" Text="{Binding MessageText, UpdateSourceTrigger=PropertyChanged}"
-                                                         VerticalContentAlignment="Center" MaxLines="1" Padding="8,5"
-                                                         FontFamily="Consolas" />
-                                                <Button Grid.Column="2" Style="{StaticResource Btn.Ghost}" Content="✕" Margin="8,0,0,0"
-                                                        Command="{Binding RemoveCommand}" ToolTip="Remove this QuickChat" />
-                                            </Grid>
+                                                <ItemsControl ItemsSource="{Binding Lines}">
+                                                    <ItemsControl.ItemTemplate>
+                                                        <DataTemplate>
+                                                            <Grid Margin="0,0,0,4">
+                                                                <Grid.ColumnDefinitions>
+                                                                    <ColumnDefinition Width="*" />
+                                                                    <ColumnDefinition Width="Auto" />
+                                                                </Grid.ColumnDefinitions>
+                                                                <TextBox Grid.Column="0" Text="{Binding Text, UpdateSourceTrigger=PropertyChanged}"
+                                                                         VerticalContentAlignment="Center" MaxLines="1" Padding="8,5"
+                                                                         FontFamily="Consolas" />
+                                                                <Button Grid.Column="1" Style="{StaticResource Btn.Ghost}" Content="✕"
+                                                                        Margin="6,0,0,0" Command="{Binding RemoveCommand}"
+                                                                        ToolTip="Мөр устгах" />
+                                                            </Grid>
+                                                        </DataTemplate>
+                                                    </ItemsControl.ItemTemplate>
+                                                </ItemsControl>
+
+                                                <Button Style="{StaticResource Btn.Ghost}" Content="+ мөр нэмэх" HorizontalAlignment="Left"
+                                                        Margin="0,2,0,0" Command="{Binding AddLineCommand}"
+                                                        ToolTip="Энэ товчинд дахин нэг мессеж нэмэх" />
+                                            </StackPanel>
                                         </Border>
                                     </DataTemplate>
                                 </ItemsControl.ItemTemplate>

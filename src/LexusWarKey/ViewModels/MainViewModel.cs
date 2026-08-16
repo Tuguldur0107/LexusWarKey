@@ -69,12 +69,35 @@ public sealed partial class KeyMapRow : ObservableObject
     }
 }
 
+/// <summary>One message line inside a QuickChat slot.</summary>
+public sealed partial class ChatMessageRow : ObservableObject
+{
+    private readonly Action _onChanged;
+    private readonly Action<ChatMessageRow> _remove;
+
+    public ChatMessageRow(string text, Action onChanged, Action<ChatMessageRow> remove)
+    {
+        _text = text;
+        _onChanged = onChanged;
+        _remove = remove;
+    }
+
+    [ObservableProperty] private string _text;
+
+    partial void OnTextChanged(string value) => _onChanged();
+
+    [RelayCommand] private void Remove() => _remove(this);
+}
+
 public sealed partial class ChatMacroRow : ObservableObject
 {
     private readonly ChatMacro _model;
     private readonly Action _onChanged;
     private readonly Action<ChatMacroRow> _beginCapture;
     private readonly Action<ChatMacroRow> _remove;
+
+    /// <summary>The messages this key sends, in order. Always at least one editable line.</summary>
+    public ObservableCollection<ChatMessageRow> Lines { get; } = new();
 
     public ChatMacroRow(string label, ChatMacro model, Action onChanged, Action<ChatMacroRow> beginCapture,
                         Action<ChatMacroRow> remove)
@@ -84,23 +107,44 @@ public sealed partial class ChatMacroRow : ObservableObject
         _onChanged = onChanged;
         _beginCapture = beginCapture;
         _remove = remove;
-        _messageText = model.Message;
+
+        var seed = model.Messages.Count > 0 ? model.Messages : new List<string> { "" };
+        foreach (var text in seed)
+            Lines.Add(new ChatMessageRow(text, SyncMessages, RemoveLine));
     }
 
     public ChatMacro Model => _model;
     public string Label { get; }
 
-    [ObservableProperty] private string _messageText = "";
     [ObservableProperty] private bool _isCapturing;
 
     public string HotkeyDisplay => IsCapturing ? "press..." : _model.HotkeyVk == 0 ? "-" : VirtualKeys.NameOf(_model.HotkeyVk);
 
     partial void OnIsCapturingChanged(bool value) => OnPropertyChanged(nameof(HotkeyDisplay));
 
-    partial void OnMessageTextChanged(string value)
+    private void SyncMessages()
     {
-        _model.Message = value;
+        _model.Messages = Lines.Select(l => l.Text).ToList();
         _onChanged();
+    }
+
+    private void RemoveLine(ChatMessageRow line)
+    {
+        // Keep at least one box so the row can still be edited; just clear the last one.
+        if (Lines.Count <= 1)
+        {
+            line.Text = "";
+            return;
+        }
+        Lines.Remove(line);
+        SyncMessages();
+    }
+
+    [RelayCommand]
+    private void AddLine()
+    {
+        Lines.Add(new ChatMessageRow("", SyncMessages, RemoveLine));
+        SyncMessages();
     }
 
     [RelayCommand] private void CaptureHotkey() => _beginCapture(this);
@@ -224,6 +268,22 @@ public sealed partial class MainViewModel : ObservableObject
 
     partial void OnAccountNameChanged(string value) => OnPropertyChanged(nameof(HasAccount));
 
+    // ---- Auto-update -----------------------------------------------------------------------------
+    private readonly UpdateService _updater = new();
+    private UpdateInfo? _pendingUpdate;
+
+    /// <summary>Short text next to the update button (download progress, "ready", "up to date").</summary>
+    [ObservableProperty] private string _updateStatus = "";
+
+    /// <summary>A verified new exe is downloaded and waiting; the button now restarts into it.</summary>
+    [ObservableProperty] private bool _updateReady;
+
+    [ObservableProperty] private bool _updateBusy;
+
+    public string UpdateGlyph => UpdateReady ? "⬇" : "↻";   // ⬇ ready to install, ↻ check
+
+    partial void OnUpdateReadyChanged(bool value) => OnPropertyChanged(nameof(UpdateGlyph));
+
     private System.Windows.Threading.DispatcherTimer? _heartbeatTimer;
 
     /// <summary>Raised when the session must be re-established: the stored token expired (the heartbeat
@@ -309,6 +369,8 @@ public sealed partial class MainViewModel : ObservableObject
         _heartbeatTimer.Start();
         _ = SendHeartbeatAsync();   // mark online right away
 
+        _ = CheckForUpdatesOnStartupAsync();   // auto-download a newer version in the background
+
         Save();
         RefreshStatus();
         RefreshConflicts();
@@ -334,6 +396,74 @@ public sealed partial class MainViewModel : ObservableObject
     {
         App.Auth?.ClearToken();
         ReloginRequested?.Invoke();
+    }
+
+    /// <summary>On startup, quietly check GitHub and pre-download a newer version so the button only has
+    /// to restart. Any failure (offline, dev build, no release) just leaves the button in its resting
+    /// "check" state.</summary>
+    private async Task CheckForUpdatesOnStartupAsync()
+    {
+        UpdateService.CleanupOldExe();
+        var info = await _updater.CheckAsync();
+        if (info is null)
+            return;
+
+        _pendingUpdate = info;
+        UpdateBusy = true;
+        UpdateStatus = $"v{info.Version} татаж байна…";
+        var ok = await _updater.DownloadAsync(info);
+        UpdateBusy = false;
+        if (ok)
+        {
+            UpdateReady = true;
+            UpdateStatus = $"v{info.Version} бэлэн — дахин эхлүүлэх";
+        }
+        else
+        {
+            UpdateStatus = "";
+        }
+    }
+
+    /// <summary>The update button. If a new version is already downloaded, install and restart into it;
+    /// otherwise check now and download whatever is newer.</summary>
+    [RelayCommand]
+    private async Task Update()
+    {
+        if (UpdateBusy)
+            return;
+
+        if (UpdateReady)
+        {
+            if (_updater.ApplyAndRestart())
+                Application.Current?.Shutdown();
+            else
+                UpdateStatus = "Шинэчлэлт амжилтгүй — гараар татна уу";
+            return;
+        }
+
+        UpdateBusy = true;
+        UpdateStatus = "Шалгаж байна…";
+        var info = await _updater.CheckAsync();
+        if (info is null)
+        {
+            UpdateBusy = false;
+            UpdateStatus = "Хамгийн сүүлийн хувилбар";
+            return;
+        }
+
+        _pendingUpdate = info;
+        UpdateStatus = $"v{info.Version} татаж байна…";
+        var ok = await _updater.DownloadAsync(info);
+        UpdateBusy = false;
+        if (ok)
+        {
+            UpdateReady = true;
+            UpdateStatus = $"v{info.Version} бэлэн — дахин эхлүүлэх";
+        }
+        else
+        {
+            UpdateStatus = "Татаж чадсангүй";
+        }
     }
 
     partial void OnIsEnabledChanged(bool value)

@@ -14,21 +14,26 @@ public sealed class KeyMap
     [JsonIgnore] public bool ClaimsKey => Enabled && FromVk != 0;
 }
 
-/// <summary>One fixed QuickChat slot: one trigger key, one message.</summary>
+/// <summary>One QuickChat slot: a trigger key and one or more messages. Pressing the key sends every
+/// message in order (each as its own all-chat line).</summary>
 public sealed class ChatMacro
 {
     public int HotkeyVk { get; set; }
 
-    /// <summary>Kept as a list for old profile compatibility. The simplified app uses only
-    /// the first non-empty line and trims every slot back to one message on load/save.</summary>
+    /// <summary>The messages this key sends, in order. Empty/whitespace lines are ignored.</summary>
     public List<string> Messages { get; set; } = new();
 
     public bool Enabled { get; set; } = true;
 
-    /// <summary>Legacy option from older builds. Simplified QuickChat always sends the visible
-    /// message to the normal all-chat path.</summary>
+    /// <summary>Legacy option from older builds. QuickChat always sends to the normal all-chat path.</summary>
     public bool AlliesOnly { get; set; }
 
+    /// <summary>The non-empty messages actually sent, trimmed and in order.</summary>
+    [JsonIgnore]
+    public IReadOnlyList<string> UsableMessages =>
+        Messages.Where(m => !string.IsNullOrWhiteSpace(m)).Select(m => m.Trim()).ToList();
+
+    /// <summary>First message — kept for display and old callers.</summary>
     [JsonIgnore]
     public string Message
     {
@@ -41,12 +46,13 @@ public sealed class ChatMacro
         }
     }
 
-    [JsonIgnore] public bool IsUsable => Enabled && HotkeyVk != 0 && !string.IsNullOrWhiteSpace(Message);
+    [JsonIgnore] public bool IsUsable => Enabled && HotkeyVk != 0 && UsableMessages.Count > 0;
 
     public void Normalise()
     {
         Messages ??= new();
-        Message = Message;
+        // Keep every non-empty message (trimmed), preserving order and how many there are.
+        Messages = Messages.Where(m => !string.IsNullOrWhiteSpace(m)).Select(m => m.Trim()).ToList();
         Enabled = true;
         AlliesOnly = false;
     }

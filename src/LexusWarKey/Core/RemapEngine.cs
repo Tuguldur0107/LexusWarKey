@@ -97,13 +97,13 @@ public sealed class RemapEngine
         if (ChatOpen)
             return RemapDecision.PassThrough;
 
-        // QuickChat is exactly two single-message slots. Modifiers are ignored so Ctrl+F6
+        // QuickChat slots each hold one or more messages. Modifiers are ignored so Ctrl+F6
         // remains the app's own in-game editor shortcut and Warcraft modifier actions survive.
         if (isKeyDown && !ctrlHeld && !altHeld)
         {
             var macro = profile.ChatMacros.FirstOrDefault(m => m.IsUsable && m.HotkeyVk == vk);
             if (macro is not null)
-                return new RemapDecision(RemapAction.SendChat, ChatLines: new[] { macro.Message });
+                return new RemapDecision(RemapAction.SendChat, ChatLines: macro.UsableMessages.ToArray());
         }
 
         // Inventory is a static key->key map (item slot keys don't change between matches).
