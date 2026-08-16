@@ -338,8 +338,8 @@
                                     <ColumnDefinition Width="*" />
                                     <ColumnDefinition Width="Auto" />
                                 </Grid.ColumnDefinitions>
-                                <Button Grid.Column="0" Style="{StaticResource KeyChip}" Content="{Binding NewHotkeyDisplay}"
-                                        MinWidth="64" Command="{Binding CaptureNewHotkeyCommand}" ToolTip="Товч сонгох" />
+                                <Button Grid.Column="0" Style="{StaticResource KeyCell}" Content="{Binding NewHotkeyDisplay}"
+                                        Width="72" Command="{Binding CaptureNewHotkeyCommand}" ToolTip="Товч сонгох" />
                                 <TextBox Grid.Column="1" Margin="8,0" Padding="8,5" FontFamily="Consolas"
                                          VerticalContentAlignment="Center" MaxLines="1"
                                          Text="{Binding NewMessage, UpdateSourceTrigger=PropertyChanged}">
@@ -357,7 +357,7 @@
 
                         <Grid DockPanel.Dock="Top" Margin="8,0,10,4">
                             <Grid.ColumnDefinitions>
-                                <ColumnDefinition Width="64" />
+                                <ColumnDefinition Width="72" />
                                 <ColumnDefinition Width="*" />
                                 <ColumnDefinition Width="28" />
                             </Grid.ColumnDefinitions>
@@ -373,11 +373,11 @@
                                                 CornerRadius="5" Margin="0,0,0,3" Padding="6,2">
                                             <Grid>
                                                 <Grid.ColumnDefinitions>
-                                                    <ColumnDefinition Width="64" />
+                                                    <ColumnDefinition Width="72" />
                                                     <ColumnDefinition Width="*" />
                                                     <ColumnDefinition Width="Auto" />
                                                 </Grid.ColumnDefinitions>
-                                                <Button Grid.Column="0" Style="{StaticResource KeyChip}" Content="{Binding HotkeyDisplay}"
+                                                <Button Grid.Column="0" Style="{StaticResource KeyCell}" Content="{Binding HotkeyDisplay}"
                                                         Command="{Binding CaptureCommand}" ToolTip="Товч солих" />
                                                 <TextBox Grid.Column="1" Margin="8,0,6,0" Padding="8,4" FontFamily="Consolas"
                                                          VerticalContentAlignment="Center" MaxLines="1"

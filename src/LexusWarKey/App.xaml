@@ -170,6 +170,29 @@
             </Setter>
         </Style>
 
+        <!-- Compact key cell for dense tables: no min-width, fills its grid column. -->
+        <Style x:Key="KeyCell" TargetType="Button">
+            <Setter Property="Cursor" Value="Hand" />
+            <Setter Property="HorizontalAlignment" Value="Stretch" />
+            <Setter Property="Template">
+                <Setter.Value>
+                    <ControlTemplate TargetType="Button">
+                        <Border x:Name="B" Background="#1E1B19" BorderBrush="{StaticResource B.Border}" BorderThickness="1"
+                                CornerRadius="6" Padding="2,6">
+                            <TextBlock Text="{TemplateBinding Content}" HorizontalAlignment="Center" VerticalAlignment="Center"
+                                       Foreground="{StaticResource B.Text}" FontWeight="SemiBold" FontSize="13"
+                                       TextTrimming="CharacterEllipsis" />
+                        </Border>
+                        <ControlTemplate.Triggers>
+                            <Trigger Property="IsMouseOver" Value="True">
+                                <Setter TargetName="B" Property="BorderBrush" Value="{StaticResource B.Accent}" />
+                            </Trigger>
+                        </ControlTemplate.Triggers>
+                    </ControlTemplate>
+                </Setter.Value>
+            </Setter>
+        </Style>
+
         <!-- One skill slot of the Warcraft-shaped grid. Click it to rebind. -->
         <Style x:Key="SlotButton" TargetType="Button">
             <Setter Property="Width" Value="78" />
