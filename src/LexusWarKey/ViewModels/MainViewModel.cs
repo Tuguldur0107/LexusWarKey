@@ -385,15 +385,21 @@ public sealed partial class MainViewModel : ObservableObject
         UpdateStatus = $"v{info.Version} татаж байна…";
         var ok = await _updater.DownloadAsync(info);
         UpdateBusy = false;
-        if (ok)
-        {
-            UpdateReady = true;
-            UpdateStatus = $"v{info.Version} бэлэн — дахин эхлүүлэх";
-        }
-        else
+        if (!ok)
         {
             UpdateStatus = "";
+            return;
         }
+
+        // Downloaded and verified — install and restart on our own, no click needed. A short pause
+        // lets the "restarting" note show; the manual button stays as a fallback if the swap fails.
+        UpdateReady = true;
+        UpdateStatus = $"v{info.Version} — дахин эхэлж байна…";
+        await Task.Delay(1500);
+        if (_updater.ApplyAndRestart())
+            Application.Current?.Shutdown();
+        else
+            UpdateStatus = $"v{info.Version} бэлэн — дахин эхлүүлэх";
     }
 
     /// <summary>The update button. If a new version is already downloaded, install and restart into it;
