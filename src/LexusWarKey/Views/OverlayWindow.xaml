@@ -7,7 +7,48 @@
         Topmost="True" ShowInTaskbar="False" ShowActivated="False"
         FontFamily="Segoe UI Variable Text, Segoe UI" UseLayoutRounding="True">
 
-    <Border Background="#CC000000" CornerRadius="8" BorderBrush="#66FFFFFF" BorderThickness="1" Padding="10" MinWidth="270">
+    <Window.Triggers>
+        <EventTrigger RoutedEvent="FrameworkElement.Loaded">
+            <BeginStoryboard>
+                <Storyboard>
+                    <!-- Rainbow border sweeps around, the glow breathes and shifts hue. -->
+                    <DoubleAnimation Storyboard.TargetName="BorderGlowRotate" Storyboard.TargetProperty="Angle"
+                                     From="0" To="360" Duration="0:0:3.5" RepeatBehavior="Forever" />
+                    <DoubleAnimation Storyboard.TargetName="BorderGlow" Storyboard.TargetProperty="BlurRadius"
+                                     From="12" To="22" Duration="0:0:1.6" AutoReverse="True" RepeatBehavior="Forever" />
+                    <ColorAnimationUsingKeyFrames Storyboard.TargetName="BorderGlow" Storyboard.TargetProperty="Color"
+                                                  Duration="0:0:5" RepeatBehavior="Forever">
+                        <LinearColorKeyFrame Value="#4A9EFF" KeyTime="0:0:0" />
+                        <LinearColorKeyFrame Value="#9A5BFF" KeyTime="0:0:1.25" />
+                        <LinearColorKeyFrame Value="#FF3B7A" KeyTime="0:0:2.5" />
+                        <LinearColorKeyFrame Value="#3BFF9A" KeyTime="0:0:3.75" />
+                        <LinearColorKeyFrame Value="#4A9EFF" KeyTime="0:0:5" />
+                    </ColorAnimationUsingKeyFrames>
+                </Storyboard>
+            </BeginStoryboard>
+        </EventTrigger>
+    </Window.Triggers>
+
+    <!-- Margin leaves room for the outer glow so the window doesn't clip it. -->
+    <Grid Margin="24">
+        <Border Background="#CC000000" CornerRadius="9" BorderThickness="2.5" Padding="10" MinWidth="270">
+            <Border.BorderBrush>
+                <LinearGradientBrush StartPoint="0,0" EndPoint="1,1">
+                    <LinearGradientBrush.RelativeTransform>
+                        <RotateTransform x:Name="BorderGlowRotate" CenterX="0.5" CenterY="0.5" Angle="0" />
+                    </LinearGradientBrush.RelativeTransform>
+                    <GradientStop Color="#FF3B3B" Offset="0.0" />
+                    <GradientStop Color="#FFB13B" Offset="0.16" />
+                    <GradientStop Color="#F5F53B" Offset="0.33" />
+                    <GradientStop Color="#3BFF6A" Offset="0.5" />
+                    <GradientStop Color="#3BC8FF" Offset="0.66" />
+                    <GradientStop Color="#9A5BFF" Offset="0.83" />
+                    <GradientStop Color="#FF3B3B" Offset="1.0" />
+                </LinearGradientBrush>
+            </Border.BorderBrush>
+            <Border.Effect>
+                <DropShadowEffect x:Name="BorderGlow" BlurRadius="16" ShadowDepth="0" Color="#4A9EFF" Opacity="0.75" />
+            </Border.Effect>
         <StackPanel>
             <Border x:Name="DragHandle" Background="#01FFFFFF" Cursor="SizeAll" Padding="2,0,2,6">
                 <Grid>
@@ -120,5 +161,6 @@
                 </ItemsControl.ItemTemplate>
             </ItemsControl>
         </StackPanel>
-    </Border>
+        </Border>
+    </Grid>
 </Window>
