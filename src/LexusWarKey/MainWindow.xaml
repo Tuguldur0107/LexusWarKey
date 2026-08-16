@@ -398,8 +398,48 @@
                                         <KeyBinding Key="Return" Command="{Binding AddChatEntryCommand}" />
                                     </TextBox.InputBindings>
                                 </TextBox>
-                                <Button Grid.Column="2" Style="{StaticResource Btn.Accent}" Content="+ Нэмэх"
-                                        Command="{Binding AddChatEntryCommand}" />
+                                <Button Grid.Column="2" Command="{Binding AddChatEntryCommand}" Cursor="Hand"
+                                        Height="34" ToolTip="Мессеж нэмэх (Enter)">
+                                    <Button.Template>
+                                        <ControlTemplate TargetType="Button">
+                                            <Border x:Name="ab" CornerRadius="8" Padding="18,0" MinWidth="104">
+                                                <Border.Background>
+                                                    <LinearGradientBrush StartPoint="0,0" EndPoint="0,1">
+                                                        <GradientStop Color="#5A8CFF" Offset="0" />
+                                                        <GradientStop Color="#3B6FE0" Offset="1" />
+                                                    </LinearGradientBrush>
+                                                </Border.Background>
+                                                <StackPanel Orientation="Horizontal" HorizontalAlignment="Center"
+                                                            VerticalAlignment="Center">
+                                                    <TextBlock Text="+" FontSize="17" FontWeight="Bold" Foreground="White"
+                                                               VerticalAlignment="Center" />
+                                                    <TextBlock Text="Нэмэх" FontSize="13" FontWeight="SemiBold" Foreground="White"
+                                                               Margin="7,0,0,0" VerticalAlignment="Center" />
+                                                </StackPanel>
+                                            </Border>
+                                            <ControlTemplate.Triggers>
+                                                <Trigger Property="IsMouseOver" Value="True">
+                                                    <Setter TargetName="ab" Property="Background">
+                                                        <Setter.Value>
+                                                            <LinearGradientBrush StartPoint="0,0" EndPoint="0,1">
+                                                                <GradientStop Color="#6E9BFF" Offset="0" />
+                                                                <GradientStop Color="#4A7EF0" Offset="1" />
+                                                            </LinearGradientBrush>
+                                                        </Setter.Value>
+                                                    </Setter>
+                                                    <Setter TargetName="ab" Property="Effect">
+                                                        <Setter.Value>
+                                                            <DropShadowEffect BlurRadius="16" ShadowDepth="0" Color="#5A8CFF" Opacity="0.7" />
+                                                        </Setter.Value>
+                                                    </Setter>
+                                                </Trigger>
+                                                <Trigger Property="IsPressed" Value="True">
+                                                    <Setter TargetName="ab" Property="Background" Value="#345FC0" />
+                                                </Trigger>
+                                            </ControlTemplate.Triggers>
+                                        </ControlTemplate>
+                                    </Button.Template>
+                                </Button>
                             </Grid>
                         </Border>
 
