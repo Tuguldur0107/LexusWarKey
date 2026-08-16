@@ -49,6 +49,25 @@
             <Setter Property="LineHeight" Value="18" />
         </Style>
 
+        <!-- Tooltip: the default WPF tooltip is a pale box that vanishes on the dark UI. Dark, readable. -->
+        <Style TargetType="ToolTip">
+            <Setter Property="Foreground" Value="{StaticResource B.Text}" />
+            <Setter Property="FontSize" Value="12" />
+            <Setter Property="Template">
+                <Setter.Value>
+                    <ControlTemplate TargetType="ToolTip">
+                        <Border Background="#F2181A1F" BorderBrush="{StaticResource B.Blue}" BorderThickness="1"
+                                CornerRadius="7" Padding="9,6">
+                            <Border.Effect>
+                                <DropShadowEffect BlurRadius="14" ShadowDepth="0" Color="#000000" Opacity="0.6" />
+                            </Border.Effect>
+                            <ContentPresenter />
+                        </Border>
+                    </ControlTemplate>
+                </Setter.Value>
+            </Setter>
+        </Style>
+
         <!-- Card -->
         <Style x:Key="Card" TargetType="Border">
             <Setter Property="Background" Value="{StaticResource B.Card}" />

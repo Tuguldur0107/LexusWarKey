@@ -78,6 +78,33 @@
         </DataTemplate>
     </Window.Resources>
 
+    <Window.Triggers>
+        <EventTrigger RoutedEvent="FrameworkElement.Loaded">
+            <BeginStoryboard>
+                <Storyboard>
+                    <!-- A slow rainbow sweep around the app frame — the overlay's look, calmer. -->
+                    <DoubleAnimation Storyboard.TargetName="AppBorderRotate" Storyboard.TargetProperty="Angle"
+                                     From="0" To="360" Duration="0:0:9" RepeatBehavior="Forever" />
+                </Storyboard>
+            </BeginStoryboard>
+        </EventTrigger>
+    </Window.Triggers>
+
+    <Border BorderThickness="2" Background="{StaticResource B.Bg}">
+        <Border.BorderBrush>
+            <LinearGradientBrush StartPoint="0,0" EndPoint="1,1">
+                <LinearGradientBrush.RelativeTransform>
+                    <RotateTransform x:Name="AppBorderRotate" CenterX="0.5" CenterY="0.5" Angle="0" />
+                </LinearGradientBrush.RelativeTransform>
+                <GradientStop Color="#FF3B3B" Offset="0.0" />
+                <GradientStop Color="#FFB13B" Offset="0.16" />
+                <GradientStop Color="#F5F53B" Offset="0.33" />
+                <GradientStop Color="#3BFF6A" Offset="0.5" />
+                <GradientStop Color="#3BC8FF" Offset="0.66" />
+                <GradientStop Color="#9A5BFF" Offset="0.83" />
+                <GradientStop Color="#FF3B3B" Offset="1.0" />
+            </LinearGradientBrush>
+        </Border.BorderBrush>
     <Grid>
         <Grid.RowDefinitions>
             <RowDefinition Height="Auto" />
@@ -394,4 +421,5 @@
             </Border>
         </Border>
     </Grid>
+    </Border>
 </Window>
